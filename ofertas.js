@@ -24,7 +24,9 @@
         rows: [],              // ofertas cruzadas com a base
         filterTipo: '',
         filterComprador: '',
-        sort: { key: null, direction: 'asc' }
+        onlyStock: false,      // chave "Somente com Estoque"
+        sort: { key: null, direction: 'asc' },
+        vendaDia: { map: new Map(), status: 'sem_arquivo', dateLabel: '', fallback: false }
     };
 
     const $ = (id) => document.getElementById(id);
@@ -312,6 +314,115 @@
         renderOfertasUI(true);
     }
 
+    // ------------------------------------- VENDA DO DIA ANTERIOR (arquivo de venda atual)
+    // Lê a coluna de data do arquivo de venda atual (a mesma que alimenta a aba de Vendas)
+    // e soma, por produto, somente as linhas do dia anterior.
+    function normHeader(k) {
+        return String(k).toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^A-Z0-9]/g, '');
+    }
+
+    // Retorna AAAAMMDD (número) ou null. Aceita dd/mm/aaaa, aaaa-mm-dd, Date e serial do Excel.
+    function parseDateKey(v) {
+        if (v === null || v === undefined || v === '') return null;
+        let y, m, d;
+        if (v instanceof Date && !isNaN(v)) {
+            y = v.getFullYear(); m = v.getMonth() + 1; d = v.getDate();
+        } else {
+            const s = String(v).trim();
+            let mt;
+            if ((typeof v === 'number' || /^\d{5}$/.test(s)) && Number(s) > 20000 && Number(s) < 80000) {
+                const dt = new Date(Math.round((Number(s) - 25569) * 86400000));
+                y = dt.getUTCFullYear(); m = dt.getUTCMonth() + 1; d = dt.getUTCDate();
+            } else if ((mt = s.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})/))) {
+                d = +mt[1]; m = +mt[2]; y = +mt[3];
+                if (y < 100) y += 2000;
+            } else if ((mt = s.match(/^(\d{4})[\/\-.](\d{1,2})[\/\-.](\d{1,2})/))) {
+                y = +mt[1]; m = +mt[2]; d = +mt[3];
+            } else {
+                return null;
+            }
+        }
+        if (!(y >= 2000 && y <= 2100 && m >= 1 && m <= 12 && d >= 1 && d <= 31)) return null;
+        return y * 10000 + m * 100 + d;
+    }
+
+    function detectDateColumn(rows) {
+        const sample = rows.slice(0, 300);
+        if (!sample.length) return null;
+        let best = null;
+        Object.keys(sample[0]).forEach(k => {
+            const nameOk = /DATA|^DT|^DIA$|EMISSAO|MOVIMENTO|^DAT/.test(normHeader(k));
+            let tot = 0, ok = 0, serial = 0;
+            sample.forEach(r => {
+                const v = r[k];
+                if (v === '' || v === null || v === undefined) return;
+                tot++;
+                if (parseDateKey(v) !== null) { ok++; if (typeof v === 'number') serial++; }
+            });
+            if (!tot || ok / tot < 0.8) return;
+            if (!nameOk && serial > 0) return;   // número solto só vale se a coluna tiver nome de data
+            const score = ok / tot + (nameOk ? 1 : 0);
+            if (!best || score > best.score) best = { key: k, score: score };
+        });
+        return best ? best.key : null;
+    }
+
+    function computeVendaDiaAnterior(rows) {
+        const res = { map: new Map(), status: 'sem_arquivo', dateLabel: '', fallback: false };
+        ofertasState.vendaDia = res;
+        if (!rows || !rows.length) return;
+
+        const dateCol = detectDateColumn(rows);
+        if (!dateCol) { res.status = 'sem_coluna_data'; return; }
+
+        const now = new Date();
+        const todayKey = now.getFullYear() * 10000 + (now.getMonth() + 1) * 100 + now.getDate();
+        const yest = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
+        const yKey = yest.getFullYear() * 10000 + (yest.getMonth() + 1) * 100 + yest.getDate();
+
+        const keys = new Set();
+        rows.forEach(r => { const dk = parseDateKey(r[dateCol]); if (dk !== null) keys.add(dk); });
+
+        let target = null;
+        if (keys.has(yKey)) {
+            target = yKey;
+        } else {
+            const older = Array.from(keys).filter(k => k < todayKey).sort((a, b) => b - a);
+            if (older.length) { target = older[0]; res.fallback = true; }
+        }
+        if (target === null) { res.status = 'sem_data_ontem'; return; }
+
+        rows.forEach(r => {
+            if (parseDateKey(r[dateCol]) !== target) return;
+            const rawCode = r['MERCADC'] || r['MERCADORIA'] || r['MERC'] || r['Código'] || r['CODIGO'] || r['PRODUTO'] || '';
+            if (!rawCode) return;
+            const id = sanitizeProductCode(rawCode);
+            const acc = res.map.get(id) || { qtd: 0, valor: 0 };
+            acc.qtd += getRowSalesQuantity(r);
+            acc.valor += getRowSalesValue(r);
+            res.map.set(id, acc);
+        });
+
+        const dd = String(target % 100).padStart(2, '0');
+        const mm = String(Math.floor(target / 100) % 100).padStart(2, '0');
+        res.dateLabel = `${dd}/${mm}`;
+        res.status = 'ok';
+    }
+    window.computeVendaDiaAnterior = computeVendaDiaAnterior;
+
+    function vendaDiaMensagem() {
+        const vd = ofertasState.vendaDia;
+        if (vd.status === 'ok') {
+            return `Venda Dia Ant.: ${vd.dateLabel}${vd.fallback ? ' (último dia disponível no arquivo)' : ''}`;
+        }
+        const motivo = {
+            'sem_arquivo': 'arquivo de venda atual não encontrado na pasta',
+            'sem_coluna_data': 'o arquivo de venda atual não tem coluna de data',
+            'sem_data_ontem': 'o arquivo de venda atual não tem dias anteriores a hoje'
+        }[vd.status] || 'sem dados';
+        return `Venda Dia Ant. indisponível: ${motivo}`;
+    }
+
     // ------------------------------------------------------- cruzamento / filtros
     function buildRows() {
         const base = getBaseMap();
@@ -326,7 +437,9 @@
                 divergente = Math.round(o.preco * 100) !== Math.round(ref * 100);
                 semEstoque = !(item.estoqEmb1 > 0 || item.estoqEmb9 > 0);
             }
-            return { oferta: o, item: item, ref: ref, refTipo: refTipo, diff: diff,
+            const vd = ofertasState.vendaDia;
+            const vendaDia = (item && vd.status === 'ok') ? (vd.map.get(o.id) || { qtd: 0, valor: 0 }) : null;
+            return { oferta: o, item: item, ref: ref, refTipo: refTipo, diff: diff, vendaDia: vendaDia,
                      divergente: divergente, semEstoque: semEstoque, naoEncontrado: !item };
         });
     }
@@ -347,6 +460,7 @@
 
     function sortValue(row, key) {
         if (key === 'precoOferta') return row.oferta.preco;
+        if (key === 'vendaOntem') return row.vendaDia ? row.vendaDia.qtd : null;
         if (!row.item) return null;
         if (key === 'dtUltEnt') {
             const m = String(row.item.dtUltEnt || '').match(/(\d{2})\/(\d{2})\/(\d{4})/);
@@ -361,6 +475,7 @@
         const comp = ofertasState.filterComprador;
 
         let rows = ofertasState.rows.filter(r => {
+            if (ofertasState.onlyStock && (r.naoEncontrado || r.semEstoque)) return false;
             if (tipo === 'sem_estoque' && !r.semEstoque) return false;
             if (tipo === 'divergente' && !r.divergente) return false;
             if (tipo === 'nao_encontrado' && !r.naoEncontrado) return false;
@@ -405,6 +520,13 @@
             <span class="sub-text">${sign}${fmtTabela(Math.abs(r.diff))} vs ${tag}</span></td>`;
     }
 
+    function buildVendaCell(r) {
+        if (r.naoEncontrado || !r.vendaDia) return '<td class="col-vendaOntem">-</td>';
+        const q = r.vendaDia.qtd, v = r.vendaDia.valor;
+        return `<td class="col-vendaOntem"><strong>${q.toLocaleString('pt-BR')}</strong>
+            <span class="sub-text">${v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span></td>`;
+    }
+
     function buildRowHtml(r) {
         const item = r.item;
 
@@ -417,6 +539,7 @@
                 <td class="col-precoCx">-</td>
                 <td class="col-precoUnd">-</td>
                 ${buildOfertaCell(r)}
+                ${buildVendaCell(r)}
                 ${COLS_APOS_OFERTA.map(c => `<td class="${c}">-</td>`).join('')}
             </tr>`;
         }
@@ -458,6 +581,7 @@
             <td class="col-precoCx${refCx}">${fmtTabela(item.precoVenda)}</td>
             <td class="col-precoUnd${refUn}">${fmtTabela(item.precoUnidade)}</td>
             ${buildOfertaCell(r)}
+            ${buildVendaCell(r)}
             <td class="col-idade"><span class="${idadeBadgeClass}">${idadeInt} d</span></td>
             <td class="col-dias"><span class="badge ${riskBadgeClass}">${item.diasSemVenda} d</span></td>
             <td class="col-autonomia">${txtAutonomia}</td>
@@ -514,26 +638,33 @@
         updateKpis(rows);
         updateSortIcons();
 
+        const thVenda = document.querySelector('#tableOfertas th.col-vendaOntem');
+        if (thVenda) {
+            thVenda.textContent = ofertasState.vendaDia.status === 'ok'
+                ? `Venda Dia Ant. (${ofertasState.vendaDia.dateLabel})` : 'Venda Dia Ant.';
+            thVenda.title = vendaDiaMensagem();
+        }
+
         $('btnOfertasClearData').disabled = !hasOffers;
         $('btnOfertasPdf').disabled = !hasOffers || !hasBase;
 
         const tbody = $('ofertasTableBody');
         if (!hasOffers) {
-            tbody.innerHTML = `<tr><td colspan="28" class="empty-state">Clique em “📋 Colar Dados” para importar a lista de códigos e preços da oferta.</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="29" class="empty-state">Clique em “📋 Colar Dados” para importar a lista de códigos e preços da oferta.</td></tr>`;
             $('ofertasPageInfo').textContent = 'Nenhuma oferta importada';
             return;
         }
         if (!hasBase) {
-            tbody.innerHTML = `<tr><td colspan="28" class="empty-state">${ofertasState.offers.length} itens de oferta importados. Selecione a pasta com os arquivos de dados para cruzar com a base e conferir os preços.</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="29" class="empty-state">${ofertasState.offers.length} itens de oferta importados. Selecione a pasta com os arquivos de dados para cruzar com a base e conferir os preços.</td></tr>`;
             $('ofertasPageInfo').textContent = `${ofertasState.offers.length} itens aguardando a base de dados`;
             return;
         }
         if (!rows.length) {
-            tbody.innerHTML = `<tr><td colspan="28" class="empty-state">Nenhum item da oferta encontrado para os filtros selecionados.</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="29" class="empty-state">Nenhum item da oferta encontrado para os filtros selecionados.</td></tr>`;
         } else {
             tbody.innerHTML = rows.map(buildRowHtml).join('');
         }
-        $('ofertasPageInfo').textContent = `Exibindo ${rows.length.toLocaleString('pt-BR')} de ${ofertasState.rows.length.toLocaleString('pt-BR')} itens da oferta`;
+        $('ofertasPageInfo').textContent = `Exibindo ${rows.length.toLocaleString('pt-BR')} de ${ofertasState.rows.length.toLocaleString('pt-BR')} itens da oferta  ·  ${vendaDiaMensagem()}`;
 
         // Mantém as mesmas colunas visíveis/ocultas escolhidas na Dashboard
         if (typeof syncColumnVisibility === 'function') syncColumnVisibility();
@@ -589,6 +720,7 @@
 
         let filtroTxt = `Filtro: ${TIPO_LABEL[ofertasState.filterTipo] || 'Todos os itens'}`;
         if (ofertasState.filterComprador) filtroTxt += `  |  Comprador: ${ofertasState.filterComprador}`;
+        if (ofertasState.onlyStock) filtroTxt += '  |  Somente com Estoque';
 
         doc.autoTable({
             head: headers,
@@ -666,6 +798,8 @@
     function clearFilters() {
         ofertasState.filterTipo = '';
         ofertasState.filterComprador = '';
+        ofertasState.onlyStock = false;
+        $('toggleOfertasOnlyStock').checked = false;
         $('filterOfertasTipo').value = '';
         ofertasState.sort = { key: null, direction: 'asc' };
         renderOfertasUI(true);
@@ -678,6 +812,8 @@
         ofertasState.rows = [];
         ofertasState.filterTipo = '';
         ofertasState.filterComprador = '';
+        ofertasState.onlyStock = false;
+        $('toggleOfertasOnlyStock').checked = false;
         ofertasState.sort = { key: null, direction: 'asc' };
         $('filterOfertasTipo').value = '';
         renderOfertasUI(true);
@@ -700,6 +836,11 @@
         });
         $('filterOfertasComprador').addEventListener('change', (e) => {
             ofertasState.filterComprador = e.target.value;
+            renderOfertasUI(true);
+        });
+
+        $('toggleOfertasOnlyStock').addEventListener('change', (e) => {
+            ofertasState.onlyStock = e.target.checked;
             renderOfertasUI(true);
         });
 

@@ -1138,6 +1138,9 @@ async function handleFolderSelect(e) {
         if (fileVendaAtual) jsonVendaAtual = await parseFileToJSON(fileVendaAtual);
         if (fileVendaAnterior) jsonVendaAnterior = await parseFileToJSON(fileVendaAnterior);
 
+        // Aba Ofertas: extrai a venda do dia anterior do arquivo de venda atual
+        if (typeof computeVendaDiaAnterior === 'function') computeVendaDiaAnterior(jsonVendaAtual);
+
         state.rawProcessedData = processData(json12, json13, jsonVendaAtual, jsonVendaAnterior);
         state.filteredData = [...state.rawProcessedData];
 

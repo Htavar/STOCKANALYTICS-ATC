@@ -1251,6 +1251,16 @@
 						<select id="filterOfertasComprador"><option value="">Comprador (Todos)</option></select>
 					</div>
 
+					<div class="toggle-group">
+						<label class="toggle-item">
+							<span class="switch">
+								<input type="checkbox" id="toggleOfertasOnlyStock">
+								<span class="slider"></span>
+							</span>
+							Somente com Estoque
+						</label>
+					</div>
+
 					<button id="btnOfertasClearFilters" class="btn-clear" title="Limpar Filtros">🧹 Limpar Filtros</button>
 					<button id="btnOfertasClearData" class="btn-clear" title="Limpar dados da oferta" disabled>🗑️ Limpar Dados</button>
 					<button id="btnOfertasPdf" class="btn-pdf" title="Gerar PDF da oferta" disabled>📄 Gerar PDF</button>
@@ -1267,6 +1277,7 @@
                                 <th data-sort-key="precoVenda" class="col-precoCx">Preço Cx.</th>
                                 <th data-sort-key="precoUnidade" class="col-precoUnd">Preço Und.</th>
                                 <th data-sort-key="precoOferta" class="col-precoOferta">Preço Oferta</th>
+								<th data-sort-key="vendaOntem" class="col-vendaOntem" title="Venda do dia anterior (arquivo de venda atual)">Venda Dia Ant.</th>
                                 <th data-sort-key="idade" class="col-idade">Idade</th>
                                 <th data-sort-key="diasSemVenda" class="col-dias">Dias s/ Venda</th>
                                 <th data-sort-key="autonomiaDias" class="col-autonomia">Autonomia (Dias)</th>
@@ -1292,7 +1303,7 @@
 						</thead>
 						<tbody id="ofertasTableBody">
 							<tr>
-								<td colspan="28" class="empty-state">Clique em “📋 Colar Dados” para importar a lista de códigos e preços da oferta.</td>
+								<td colspan="29" class="empty-state">Clique em “📋 Colar Dados” para importar a lista de códigos e preços da oferta.</td>
 							</tr>
 						</tbody>
 					</table>
