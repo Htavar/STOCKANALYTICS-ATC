@@ -1623,6 +1623,11 @@ function renderUI() {
 		renderPerdasUI();
 	}	
 
+	// Aba Ofertas: recruza com a base sempre que os dados forem recarregados
+	if (typeof renderOfertasUI === 'function') {
+		renderOfertasUI();
+	}
+
     if (state.activeTab === 'tab-dashboard') {
         renderDashboardTable(pageItems);
     } else if (state.activeTab === 'tab-sales') {

@@ -15,6 +15,7 @@
 	<link rel="stylesheet" href="perdas.css">
 	<!-- Estilo Gráfico de Perdas -->
 	<link rel="stylesheet" href="grafico_perdas.css">
+	<link rel="stylesheet" href="ofertas.css">
 	
     <!-- SheetJS CDN -->
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
@@ -51,6 +52,7 @@
 				<button class="tab-btn" data-tab="tab-pedidos">🛒 Pedidos</button>
 				<button class="tab-btn" data-tab="tab-perdas">🗑️ Perdas</button>
 				<button class="tab-btn" data-tab="tab-grafico-perdas">📊 Gráfico Perdas</button>
+				<button class="tab-btn" data-tab="tab-ofertas">🏷️ Ofertas</button>
             </nav>
 
             <div class="data-sync-widget">
@@ -1210,6 +1212,94 @@
                     <button id="btnNextPage" class="btn-secondary" disabled>Próxima ▶</button>
                 </div>
             </div>
+			<!-- ABA OFERTAS -->
+			<div id="tab-ofertas" class="tab-content hidden">
+
+				<section class="bento-grid">
+					<div class="bento-card">
+						<span class="card-label">Itens na Oferta</span>
+						<strong class="card-value" id="kpiOfertasTotal">0</strong>
+					</div>
+					<div class="bento-card">
+						<span class="card-label">Encontrados na Base</span>
+						<strong class="card-value" id="kpiOfertasEncontrados">0</strong>
+					</div>
+					<div class="bento-card warning">
+						<span class="card-label">Não Encontrados</span>
+						<strong class="card-value" id="kpiOfertasNaoEnc">0</strong>
+					</div>
+					<div class="bento-card warning">
+						<span class="card-label">Sem Estoque</span>
+						<strong class="card-value" id="kpiOfertasSemEstoque">0</strong>
+					</div>
+					<div class="bento-card critical">
+						<span class="card-label">Preços Divergentes</span>
+						<strong class="card-value" id="kpiOfertasDivergentes">0</strong>
+					</div>
+				</section>
+
+				<section class="controls-section" style="margin-top: 0.25rem;">
+					<button id="btnOfertasPaste" class="btn-primary">📋 Colar Dados</button>
+
+					<div class="filter-group">
+						<select id="filterOfertasTipo">
+							<option value="">Todos os itens</option>
+							<option value="sem_estoque">Itens sem estoque</option>
+							<option value="divergente">Itens preços divergentes</option>
+							<option value="nao_encontrado">Códigos não encontrados</option>
+						</select>
+						<select id="filterOfertasComprador"><option value="">Comprador (Todos)</option></select>
+					</div>
+
+					<button id="btnOfertasClearFilters" class="btn-clear" title="Limpar Filtros">🧹 Limpar Filtros</button>
+					<button id="btnOfertasClearData" class="btn-clear" title="Limpar dados da oferta" disabled>🗑️ Limpar Dados</button>
+					<button id="btnOfertasPdf" class="btn-pdf" title="Gerar PDF da oferta" disabled>📄 Gerar PDF</button>
+				</section>
+
+				<section class="table-container">
+					<table class="data-table" id="tableOfertas">
+						<thead>
+							<tr>
+								<th data-sort-key="descricao">Produto (MERC)</th>
+                                <th data-sort-key="embalagem" class="col-embalagem">Emb.</th>
+                                <th data-sort-key="estoqEmb1" class="col-estoque">Estoque (CX | UN)</th>
+                                <th data-sort-key="valorEstoqueTotal" class="col-valorEstoque">Val. Total Estoque</th>
+                                <th data-sort-key="precoVenda" class="col-precoCx">Preço Cx.</th>
+                                <th data-sort-key="precoUnidade" class="col-precoUnd">Preço Und.</th>
+                                <th data-sort-key="precoOferta" class="col-precoOferta">Preço Oferta</th>
+                                <th data-sort-key="idade" class="col-idade">Idade</th>
+                                <th data-sort-key="diasSemVenda" class="col-dias">Dias s/ Venda</th>
+                                <th data-sort-key="autonomiaDias" class="col-autonomia">Autonomia (Dias)</th>
+                                <th data-sort-key="rentabilidade" class="col-rentabilidade">Rentabilidade</th>
+                                <th data-sort-key="fornecedorFormatted" class="col-fornecedor">Fornecedor</th>
+                                <th data-sort-key="pedidosPendentes" class="col-pedidos">Ped. Pendentes</th>
+                                <th data-sort-key="sta" class="col-sta">Status (STA)</th>
+                                <th data-sort-key="comprador" class="col-comprador">Comprador</th>
+                                <th data-sort-key="venda30Dias" class="col-venda30Dias">Venda 30 Dias</th>
+                                <th data-sort-key="grupoSubgrupo" class="col-grupo">Grupo / Subgrupo</th>
+                                <th data-sort-key="classe" class="col-classe">Classe</th>
+                                <th data-sort-key="digito" class="col-digito">Dígito</th>
+                                <th data-sort-key="qtdIdeal" class="col-qtdIdeal">Qtd Ideal</th>
+                                <th data-sort-key="dtUltEnt" class="col-dtUltEnt">Dt. Últ. Ent.</th>
+                                <th data-sort-key="qtdUltEnt" class="col-qtdUltEnt">Qtd. Últ. Ent.</th>
+                                <th data-sort-key="bloq1" class="col-bloq1">Bloq 1</th>
+                                <th data-sort-key="bloq9" class="col-bloq9">Bloq 9</th>
+                                <th data-sort-key="prFixo" class="col-prFixo">Pr. Fixo</th>
+                                <th data-sort-key="pedFornec" class="col-pedFornec">Ped. Fornec.</th>
+                                <th data-sort-key="pedFilial" class="col-pedFilial">Ped. Filial</th>
+                                <th data-sort-key="pedFat" class="col-pedFat">Ped. N. Fat</th>
+							</tr>
+						</thead>
+						<tbody id="ofertasTableBody">
+							<tr>
+								<td colspan="28" class="empty-state">Clique em “📋 Colar Dados” para importar a lista de códigos e preços da oferta.</td>
+							</tr>
+						</tbody>
+					</table>
+				</section>
+				<div class="ofertas-info-bar"><span id="ofertasPageInfo">Nenhuma oferta importada</span></div>
+			</div>
+
         </main>
     </div>
 
@@ -1254,6 +1344,36 @@
                 <div class="modal-actions">
                     <button id="btnCancelTargetPdf" class="btn-secondary">Cancelar</button>
                     <button id="btnGenerateTargetPdf" class="btn-primary">Gerar PDF</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL COLAR DADOS DA OFERTA -->
+    <div id="modalOfertasPaste" class="modal-overlay hidden">
+        <div class="modal-card ofertas-modal-card">
+            <div class="modal-header">
+                <h3>📋 Colar Dados da Oferta</h3>
+                <button id="btnCloseOfertasPaste" class="btn-close-modal">✖</button>
+            </div>
+            <div class="modal-body">
+                <p class="ofertas-hint">No Excel, copie as células da lista (pode incluir cabeçalho e outras colunas) e cole abaixo com Ctrl+V. O sistema identifica as colunas de Código e Preço; confira e ajuste se precisar.</p>
+                <textarea id="ofertasPasteArea" placeholder="Cole aqui os dados copiados do Excel..." spellcheck="false"></textarea>
+
+                <div id="ofertasMapSection" class="hidden">
+                    <div class="ofertas-map-row">
+                        <label>Coluna do Código <select id="selOfertasColCodigo"></select></label>
+                        <label>Coluna do Preço <select id="selOfertasColPreco"></select></label>
+                    </div>
+                    <div class="ofertas-preview-wrap">
+                        <table class="data-table" id="ofertasPreviewTable"></table>
+                    </div>
+                    <div id="ofertasPasteSummary" class="ofertas-summary"></div>
+                </div>
+
+                <div class="modal-actions">
+                    <button id="btnOfertasPasteCancel" class="btn-secondary">Cancelar</button>
+                    <button id="btnOfertasPasteApply" class="btn-primary" disabled>Aplicar</button>
                 </div>
             </div>
         </div>
@@ -1326,5 +1446,6 @@
     <script src="pedidos.js"></script>
     <script src="perdas.js"></script>
 	<script src="grafico_perdas.js"></script>
+	<script src="ofertas.js"></script>
 </body>
 </html>
