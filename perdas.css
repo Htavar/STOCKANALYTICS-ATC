@@ -1,0 +1,54 @@
+/* ESTILOS DE PERDAS */
+
+#tab-perdas .controls-section {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+    align-items: center;
+    background: linear-gradient(180deg, #131d31 0%, #0b1120 100%);
+    padding: 0.25rem 0.4rem;
+    border-radius: 5px;
+    border: 1px solid var(--border-color);
+    box-shadow: var(--shadow-3d-card);
+    width: 100%;
+}
+
+#tab-perdas select, 
+#tab-perdas input[type="text"] {
+    background-color: var(--bg-primary, #0b1120);
+    border: 1px solid var(--border-color, #26334d);
+    color: var(--text-main, #f8fafc);
+    padding: 0.2rem 0.35rem;
+    border-radius: 3px;
+    font-size: 0.7rem;
+    box-shadow: inset 0 1px 3px rgba(0,0,0,0.5);
+}
+
+#tab-perdas select:focus, 
+#tab-perdas input:focus {
+    outline: 1px solid var(--accent-blue, #38bdf8);
+}
+
+/* Esconder Coluna */
+.hidden-col {
+    display: none !important;
+}
+
+#tablePerdas th[data-sort-key] {
+    cursor: pointer;
+    user-select: none;
+}
+
+#tablePerdas th[data-sort-key]:hover {
+    color: var(--accent-blue, #38bdf8);
+}
+
+#tablePerdas th.sort-asc::after {
+    content: " ▲";
+    color: var(--accent-blue, #38bdf8);
+}
+
+#tablePerdas th.sort-desc::after {
+    content: " ▼";
+    color: var(--accent-blue, #38bdf8);
+}
