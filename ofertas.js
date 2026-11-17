@@ -26,7 +26,7 @@
         filterComprador: '',
         onlyStock: false,      // chave "Somente com Estoque"
         sort: { key: null, direction: 'asc' },
-        vendaDia: { map: new Map(), status: 'sem_arquivo', dateLabel: '', fallback: false }
+        vendaDia: { map: new Map(), status: 'sem_arquivo', dateLabel: '', fileName: '', origin: '' }
     };
 
     const $ = (id) => document.getElementById(id);
@@ -350,10 +350,13 @@
         return null;
     }
 
-    function computeVendaDiaAnterior(rows) {
-        const res = { map: new Map(), status: 'sem_arquivo', dateLabel: '', dateOk: true };
+    function computeVendaDiaAnterior(rows, fileName, origin) {
+        // Recarregar a pasta sem arquivo do dia não apaga o que foi carregado manualmente
+        if ((!rows || !rows.length) && origin === 'pasta' && ofertasState.vendaDia.origin === 'manual') return;
+
+        const res = { map: new Map(), status: 'sem_arquivo', dateLabel: '', dateOk: true, fileName: fileName || '', origin: origin || '' };
         ofertasState.vendaDia = res;
-        if (!rows || !rows.length) return;
+        if (!rows || !rows.length) { if (origin === 'manual') res.status = 'vazio'; return; }
 
         const first = rows[0];
         const kCx = pickKey(first, ['EMB1', 'EMB 1', 'CAIXAS', 'QTD.CX']);
@@ -403,8 +406,9 @@
             return `Venda Dia Ant.: ${vd.dateLabel || 'arquivo do dia'}${vd.dateLabel && !vd.dateOk ? ' ⚠ data diferente de ontem' : ''}`;
         }
         const motivo = {
-            'sem_arquivo': 'arquivo de venda do dia não encontrado na pasta (nome com "VendaDia", ex.: VendaDia.xls)',
-            'sem_colunas': 'o arquivo do dia não tem a coluna EMB1'
+            'sem_arquivo': 'nenhum arquivo de venda do dia carregado (use o botão 📅 Venda Dia Ant. ou coloque "VendaDia" no nome do arquivo na pasta)',
+            'sem_colunas': 'o arquivo do dia não tem a coluna EMB1',
+            'vazio': 'o arquivo carregado está vazio'
         }[vd.status] || 'sem dados';
         return `Venda Dia Ant. indisponível: ${motivo}`;
     }
@@ -604,6 +608,35 @@
         set('kpiOfertasDivergentes', rows.filter(r => r.divergente).length);
     }
 
+    function updateVendaStatus() {
+        const el = $('ofertasVendaStatus');
+        if (!el) return;
+        const vd = ofertasState.vendaDia;
+        el.title = vendaDiaMensagem();
+        if (vd.status === 'ok') {
+            el.className = 'ofertas-venda-status ok';
+            el.textContent = `✔ ${vd.fileName || 'Venda do dia'}${vd.dateLabel ? ' · ' + vd.dateLabel : ''} · ${vd.map.size.toLocaleString('pt-BR')} produtos`;
+        } else {
+            el.className = 'ofertas-venda-status warn';
+            el.textContent = vd.status === 'sem_colunas' ? '⚠ Arquivo sem coluna EMB1' : '⚠ Venda do dia anterior não carregada';
+        }
+    }
+
+    async function onVendaDiaFile(e) {
+        const file = e.target.files && e.target.files[0];
+        e.target.value = '';
+        if (!file) return;
+        try {
+            const rows = await parseFileToJSON(file);
+            computeVendaDiaAnterior(rows, file.name, 'manual');
+            if (ofertasState.vendaDia.status !== 'ok') alert('Não foi possível usar o arquivo: ' + vendaDiaMensagem());
+        } catch (err) {
+            console.error(err);
+            alert('Não foi possível ler o arquivo: ' + file.name);
+        }
+        renderOfertasUI(true);
+    }
+
     function updateSortIcons() {
         document.querySelectorAll('#tableOfertas th[data-sort-key]').forEach(th => {
             th.classList.remove('sort-asc', 'sort-desc');
@@ -633,6 +666,7 @@
                 ? `Venda Dia Ant. (${ofertasState.vendaDia.dateLabel})` : 'Venda Dia Ant.';
             thVenda.title = vendaDiaMensagem();
         }
+        updateVendaStatus();
 
         $('btnOfertasClearData').disabled = !hasOffers;
         $('btnOfertasPdf').disabled = !hasOffers || !hasBase;
@@ -812,6 +846,8 @@
         if (!$('tab-ofertas')) return;
 
         $('btnOfertasPaste').addEventListener('click', openPasteModal);
+        $('btnOfertasVendaDia').addEventListener('click', () => $('inputOfertasVendaDia').click());
+        $('inputOfertasVendaDia').addEventListener('change', onVendaDiaFile);
         $('btnCloseOfertasPaste').addEventListener('click', closePasteModal);
         $('btnOfertasPasteCancel').addEventListener('click', closePasteModal);
         $('btnOfertasPasteApply').addEventListener('click', applyPaste);

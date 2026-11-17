@@ -6,7 +6,8 @@ const CONFIG_TARGET_FILES = {
     fornecedores: ['fornecedor', 'fornecedores'],
     vendaAtual: ['venda_atual', 'atual', 'vendas', 'venda'],
     vendaAnterior: ['venda_anterior', 'anterior', 'ano_passado', 'vda_ant'],
-    vendaDia: ['venda_dia', 'vendadia', 'venda_ontem', 'vendaontem', 'venda_d1', 'dia_anterior', 'diaanterior']
+    // comparados sem espaços, "_", "-", "." e acentos (ex.: "Venda Dia.xls" = "venda_dia" = "VendaDia")
+    vendaDia: ['vendadia', 'vendaontem', 'vendad1', 'diaanterior', 'vendadodia']
 };
 
 const state = {
@@ -1098,7 +1099,8 @@ async function handleFolderSelect(e) {
         const nameLower = file.name.toLowerCase();
 
         // Venda do dia anterior (Aba Ofertas): testado antes dos demais, pois "dia_anterior" também contém "anterior"
-        if (CONFIG_TARGET_FILES.vendaDia.some(key => nameLower.includes(key))) {
+        const nameNorm = nameLower.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[\s_\-.()]+/g, '');
+        if (CONFIG_TARGET_FILES.vendaDia.some(key => nameNorm.includes(key))) {
             fileVendaDia = file;
             return;
         }
@@ -1149,7 +1151,7 @@ async function handleFolderSelect(e) {
         // Aba Ofertas: venda do dia anterior (arquivo separado, ex.: VendaDia.xls)
         let jsonVendaDia = [];
         if (fileVendaDia) jsonVendaDia = await parseFileToJSON(fileVendaDia);
-        if (typeof computeVendaDiaAnterior === 'function') computeVendaDiaAnterior(jsonVendaDia);
+        if (typeof computeVendaDiaAnterior === 'function') computeVendaDiaAnterior(jsonVendaDia, fileVendaDia ? fileVendaDia.name : '', 'pasta');
 
         state.rawProcessedData = processData(json12, json13, jsonVendaAtual, jsonVendaAnterior);
         state.filteredData = [...state.rawProcessedData];
