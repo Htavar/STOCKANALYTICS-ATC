@@ -5,7 +5,8 @@ const CONFIG_TARGET_FILES = {
     smg13: ['smg13', 'biblia'],
     fornecedores: ['fornecedor', 'fornecedores'],
     vendaAtual: ['venda_atual', 'atual', 'vendas', 'venda'],
-    vendaAnterior: ['venda_anterior', 'anterior', 'ano_passado', 'vda_ant']
+    vendaAnterior: ['venda_anterior', 'anterior', 'ano_passado', 'vda_ant'],
+    vendaDia: ['venda_dia', 'vendadia', 'venda_ontem', 'vendaontem', 'venda_d1', 'dia_anterior', 'diaanterior']
 };
 
 const state = {
@@ -1091,10 +1092,17 @@ async function handleFolderSelect(e) {
     const files = Array.from(e.target.files);
     if (!files.length) return;
 
-    let file12 = null, file13 = null, fileForn = null, fileVendaAtual = null, fileVendaAnterior = null;
+    let file12 = null, file13 = null, fileForn = null, fileVendaAtual = null, fileVendaAnterior = null, fileVendaDia = null;
 
     files.forEach(file => {
         const nameLower = file.name.toLowerCase();
+
+        // Venda do dia anterior (Aba Ofertas): testado antes dos demais, pois "dia_anterior" também contém "anterior"
+        if (CONFIG_TARGET_FILES.vendaDia.some(key => nameLower.includes(key))) {
+            fileVendaDia = file;
+            return;
+        }
+
         if (CONFIG_TARGET_FILES.smg12.some(key => nameLower.includes(key))) file12 = file;
         if (CONFIG_TARGET_FILES.smg13.some(key => nameLower.includes(key))) file13 = file;
         if (CONFIG_TARGET_FILES.fornecedores.some(key => nameLower.includes(key))) fileForn = file;
@@ -1138,8 +1146,10 @@ async function handleFolderSelect(e) {
         if (fileVendaAtual) jsonVendaAtual = await parseFileToJSON(fileVendaAtual);
         if (fileVendaAnterior) jsonVendaAnterior = await parseFileToJSON(fileVendaAnterior);
 
-        // Aba Ofertas: extrai a venda do dia anterior do arquivo de venda atual
-        if (typeof computeVendaDiaAnterior === 'function') computeVendaDiaAnterior(jsonVendaAtual);
+        // Aba Ofertas: venda do dia anterior (arquivo separado, ex.: VendaDia.xls)
+        let jsonVendaDia = [];
+        if (fileVendaDia) jsonVendaDia = await parseFileToJSON(fileVendaDia);
+        if (typeof computeVendaDiaAnterior === 'function') computeVendaDiaAnterior(jsonVendaDia);
 
         state.rawProcessedData = processData(json12, json13, jsonVendaAtual, jsonVendaAnterior);
         state.filteredData = [...state.rawProcessedData];

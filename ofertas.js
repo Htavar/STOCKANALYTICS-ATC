@@ -314,12 +314,11 @@
         renderOfertasUI(true);
     }
 
-    // ------------------------------------- VENDA DO DIA ANTERIOR (arquivo de venda atual)
-    // Lê a coluna de data do arquivo de venda atual (a mesma que alimenta a aba de Vendas)
-    // e soma, por produto, somente as linhas do dia anterior.
-    function normHeader(k) {
-        return String(k).toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^A-Z0-9]/g, '');
-    }
+    // ------------------------------------- VENDA DO DIA ANTERIOR (arquivo de venda do dia)
+    // O "VendaAtual" é o ACUMULADO do mês (uma linha por produto; DT.ULT.EV. é só a data da
+    // última venda), então o dia anterior não pode ser separado dele. Por isso esta coluna lê
+    // um arquivo no mesmo layout, exportado só com o período de ontem (ex.: VendaDia.xls),
+    // usando EMB1 (caixas) e VLR.TOTAL (valor).
 
     // Retorna AAAAMMDD (número) ou null. Aceita dd/mm/aaaa, aaaa-mm-dd, Date e serial do Excel.
     function parseDateKey(v) {
@@ -346,66 +345,54 @@
         return y * 10000 + m * 100 + d;
     }
 
-    function detectDateColumn(rows) {
-        const sample = rows.slice(0, 300);
-        if (!sample.length) return null;
-        let best = null;
-        Object.keys(sample[0]).forEach(k => {
-            const nameOk = /DATA|^DT|^DIA$|EMISSAO|MOVIMENTO|^DAT/.test(normHeader(k));
-            let tot = 0, ok = 0, serial = 0;
-            sample.forEach(r => {
-                const v = r[k];
-                if (v === '' || v === null || v === undefined) return;
-                tot++;
-                if (parseDateKey(v) !== null) { ok++; if (typeof v === 'number') serial++; }
-            });
-            if (!tot || ok / tot < 0.8) return;
-            if (!nameOk && serial > 0) return;   // número solto só vale se a coluna tiver nome de data
-            const score = ok / tot + (nameOk ? 1 : 0);
-            if (!best || score > best.score) best = { key: k, score: score };
-        });
-        return best ? best.key : null;
+    function pickKey(row, names) {
+        for (const n of names) if (row[n] !== undefined) return n;
+        return null;
     }
 
     function computeVendaDiaAnterior(rows) {
-        const res = { map: new Map(), status: 'sem_arquivo', dateLabel: '', fallback: false };
+        const res = { map: new Map(), status: 'sem_arquivo', dateLabel: '', dateOk: true };
         ofertasState.vendaDia = res;
         if (!rows || !rows.length) return;
 
-        const dateCol = detectDateColumn(rows);
-        if (!dateCol) { res.status = 'sem_coluna_data'; return; }
+        const first = rows[0];
+        const kCx = pickKey(first, ['EMB1', 'EMB 1', 'CAIXAS', 'QTD.CX']);
+        const kUn = pickKey(first, ['EMB9', 'EMB 9', 'UNIDADES']);
+        const kDt = pickKey(first, ['DT.ULT.EV.', 'DT.ULT.EV', 'DT.ULT.EVENTO']);
+        if (!kCx) { res.status = 'sem_colunas'; return; }
 
-        const now = new Date();
-        const todayKey = now.getFullYear() * 10000 + (now.getMonth() + 1) * 100 + now.getDate();
-        const yest = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
-        const yKey = yest.getFullYear() * 10000 + (yest.getMonth() + 1) * 100 + yest.getDate();
-
-        const keys = new Set();
-        rows.forEach(r => { const dk = parseDateKey(r[dateCol]); if (dk !== null) keys.add(dk); });
-
-        let target = null;
-        if (keys.has(yKey)) {
-            target = yKey;
-        } else {
-            const older = Array.from(keys).filter(k => k < todayKey).sort((a, b) => b - a);
-            if (older.length) { target = older[0]; res.fallback = true; }
-        }
-        if (target === null) { res.status = 'sem_data_ontem'; return; }
+        // O relatório repete alguns produtos (só muda "SETOR BALANCO"): conta uma vez só
+        const seen = new Set();
+        let maxDate = 0;
 
         rows.forEach(r => {
-            if (parseDateKey(r[dateCol]) !== target) return;
             const rawCode = r['MERCADC'] || r['MERCADORIA'] || r['MERC'] || r['Código'] || r['CODIGO'] || r['PRODUTO'] || '';
             if (!rawCode) return;
+            const sig = Object.keys(r).filter(k => k !== 'SETOR BALANCO').map(k => r[k]).join('|');
+            if (seen.has(sig)) return;
+            seen.add(sig);
+
             const id = sanitizeProductCode(rawCode);
-            const acc = res.map.get(id) || { qtd: 0, valor: 0 };
-            acc.qtd += getRowSalesQuantity(r);
+            const acc = res.map.get(id) || { cx: 0, un: 0, valor: 0 };
+            acc.cx += parseBRNumber(r[kCx]);
+            acc.un += kUn ? parseBRNumber(r[kUn]) : 0;
             acc.valor += getRowSalesValue(r);
             res.map.set(id, acc);
+
+            if (kDt) {
+                const dk = parseDateKey(r[kDt]);
+                if (dk && dk > maxDate) maxDate = dk;
+            }
         });
 
-        const dd = String(target % 100).padStart(2, '0');
-        const mm = String(Math.floor(target / 100) % 100).padStart(2, '0');
-        res.dateLabel = `${dd}/${mm}`;
+        if (maxDate) {
+            const dd = String(maxDate % 100).padStart(2, '0');
+            const mm = String(Math.floor(maxDate / 100) % 100).padStart(2, '0');
+            res.dateLabel = `${dd}/${mm}`;
+            const now = new Date();
+            const yest = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
+            res.dateOk = maxDate === yest.getFullYear() * 10000 + (yest.getMonth() + 1) * 100 + yest.getDate();
+        }
         res.status = 'ok';
     }
     window.computeVendaDiaAnterior = computeVendaDiaAnterior;
@@ -413,12 +400,11 @@
     function vendaDiaMensagem() {
         const vd = ofertasState.vendaDia;
         if (vd.status === 'ok') {
-            return `Venda Dia Ant.: ${vd.dateLabel}${vd.fallback ? ' (último dia disponível no arquivo)' : ''}`;
+            return `Venda Dia Ant.: ${vd.dateLabel || 'arquivo do dia'}${vd.dateLabel && !vd.dateOk ? ' ⚠ data diferente de ontem' : ''}`;
         }
         const motivo = {
-            'sem_arquivo': 'arquivo de venda atual não encontrado na pasta',
-            'sem_coluna_data': 'o arquivo de venda atual não tem coluna de data',
-            'sem_data_ontem': 'o arquivo de venda atual não tem dias anteriores a hoje'
+            'sem_arquivo': 'arquivo de venda do dia não encontrado na pasta (nome com "VendaDia", ex.: VendaDia.xls)',
+            'sem_colunas': 'o arquivo do dia não tem a coluna EMB1'
         }[vd.status] || 'sem dados';
         return `Venda Dia Ant. indisponível: ${motivo}`;
     }
@@ -430,7 +416,9 @@
             const item = base.get(o.id) || null;
             let ref = null, refTipo = null, diff = null, divergente = false, semEstoque = false;
             if (item) {
-                const isKg = /KG/i.test(String(item.embalagem || ''));
+                // Item "de KG" = vendido em KG (unidade de venda KG, ex.: "KG 1 X 1000 X 1KG").
+                // Embalagens como "FDO 1 X 6 5KG" só têm peso no nome: são comparadas pelo Preço Und.
+                const isKg = /^\s*KGS?\b/i.test(String(item.embalagem || ''));
                 refTipo = isKg ? 'CX' : 'UN';
                 ref = isKg ? item.precoVenda : item.precoUnidade;
                 diff = o.preco - ref;
@@ -438,7 +426,7 @@
                 semEstoque = !(item.estoqEmb1 > 0 || item.estoqEmb9 > 0);
             }
             const vd = ofertasState.vendaDia;
-            const vendaDia = (item && vd.status === 'ok') ? (vd.map.get(o.id) || { qtd: 0, valor: 0 }) : null;
+            const vendaDia = (item && vd.status === 'ok') ? (vd.map.get(o.id) || { cx: 0, un: 0, valor: 0 }) : null;
             return { oferta: o, item: item, ref: ref, refTipo: refTipo, diff: diff, vendaDia: vendaDia,
                      divergente: divergente, semEstoque: semEstoque, naoEncontrado: !item };
         });
@@ -460,7 +448,7 @@
 
     function sortValue(row, key) {
         if (key === 'precoOferta') return row.oferta.preco;
-        if (key === 'vendaOntem') return row.vendaDia ? row.vendaDia.qtd : null;
+        if (key === 'vendaOntem') return row.vendaDia ? row.vendaDia.cx : null;
         if (!row.item) return null;
         if (key === 'dtUltEnt') {
             const m = String(row.item.dtUltEnt || '').match(/(\d{2})\/(\d{2})\/(\d{4})/);
@@ -522,8 +510,9 @@
 
     function buildVendaCell(r) {
         if (r.naoEncontrado || !r.vendaDia) return '<td class="col-vendaOntem">-</td>';
-        const q = r.vendaDia.qtd, v = r.vendaDia.valor;
-        return `<td class="col-vendaOntem"><strong>${q.toLocaleString('pt-BR')}</strong>
+        const cx = r.vendaDia.cx, v = r.vendaDia.valor;
+        return `<td class="col-vendaOntem" title="${r.vendaDia.un.toLocaleString('pt-BR')} UN avulsas">
+            <strong>${cx.toLocaleString('pt-BR')} CX</strong>
             <span class="sub-text">${v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span></td>`;
     }
 
@@ -640,7 +629,7 @@
 
         const thVenda = document.querySelector('#tableOfertas th.col-vendaOntem');
         if (thVenda) {
-            thVenda.textContent = ofertasState.vendaDia.status === 'ok'
+            thVenda.textContent = (ofertasState.vendaDia.status === 'ok' && ofertasState.vendaDia.dateLabel)
                 ? `Venda Dia Ant. (${ofertasState.vendaDia.dateLabel})` : 'Venda Dia Ant.';
             thVenda.title = vendaDiaMensagem();
         }
