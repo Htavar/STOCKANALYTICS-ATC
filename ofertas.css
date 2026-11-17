@@ -127,3 +127,53 @@
 }
 .ofertas-venda-status.ok { color: #4ade80; }
 .ofertas-venda-status.warn { color: #fbbf24; }
+
+/* ---- Seleção de linhas ---- */
+#tableOfertas tr.row-selected td { background-color: rgba(56, 189, 248, 0.12); }
+
+/* ---- Cor do preço atual (o usado na comparação) em relação à oferta ---- */
+#tableOfertas td.ofertas-ref-maior { color: #fb923c; }   /* atual > oferta : laranja */
+#tableOfertas td.ofertas-ref-menor { color: #4ade80; }   /* atual < oferta : verde   */
+#tableOfertas td.ofertas-ref-igual { color: var(--accent-blue); } /* igual : azul     */
+
+#tableOfertas td.col-precoFixo,
+#tableOfertas th.col-precoFixo { text-align: center; }
+
+/* ---- Modal PDF para clientes ---- */
+.ofertas-modal-small { width: 360px; max-width: 94%; }
+
+.ofertas-date-row {
+    display: flex;
+    gap: 0.6rem;
+    margin: 0.4rem 0 0.5rem 0;
+}
+
+.ofertas-date-row label {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    font-size: 0.65rem;
+    color: var(--text-muted);
+    font-weight: 600;
+    flex: 1;
+}
+
+.ofertas-date-row input[type="date"] {
+    background-color: var(--bg-primary);
+    border: 1px solid var(--border-color);
+    color: var(--text-main);
+    padding: 0.28rem 0.35rem;
+    border-radius: 3px;
+    font-size: 0.72rem;
+    color-scheme: dark;
+}
+
+.ofertas-check {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-size: 0.68rem;
+    color: var(--text-main);
+    cursor: pointer;
+    margin-bottom: 0.3rem;
+}

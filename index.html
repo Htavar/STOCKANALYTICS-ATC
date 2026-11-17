@@ -1249,6 +1249,8 @@
 							<option value="">Todos os itens</option>
 							<option value="sem_estoque">Itens sem estoque</option>
 							<option value="divergente">Itens preços divergentes</option>
+							<option value="atual_maior">Preço atual maior que a oferta</option>
+							<option value="atual_menor">Preço atual menor que a oferta</option>
 							<option value="nao_encontrado">Códigos não encontrados</option>
 						</select>
 						<select id="filterOfertasComprador"><option value="">Comprador (Todos)</option></select>
@@ -1262,11 +1264,26 @@
 							</span>
 							Somente com Estoque
 						</label>
+						<label class="toggle-item" title="Mostra só os itens com Preço Fixo = S">
+							<span class="switch">
+								<input type="checkbox" id="toggleOfertasOnlyBloq">
+								<span class="slider"></span>
+							</span>
+							Produtos Bloqueados
+						</label>
 					</div>
 
 					<button id="btnOfertasClearFilters" class="btn-clear" title="Limpar Filtros">🧹 Limpar Filtros</button>
 					<button id="btnOfertasClearData" class="btn-clear" title="Limpar dados da oferta" disabled>🗑️ Limpar Dados</button>
-					<button id="btnOfertasPdf" class="btn-pdf" title="Gerar PDF da oferta" disabled>📄 Gerar PDF</button>
+					<div class="dropdown-wrapper" id="ofertasPdfWrapper">
+						<button id="btnOfertasPdf" class="btn-pdf" title="Gerar PDF da oferta" disabled>📄 PDF ▾</button>
+						<div id="dropdownOfertasPdf" class="dropdown-menu hidden">
+							<button id="btnOfertasPdfConferencia">📄 Conferência de Preços</button>
+							<button id="btnOfertasPdfSelecionados">✅ Itens Selecionados (0)</button>
+							<button id="btnOfertasPdfClientes">🛍️ PDF para Clientes</button>
+							<button id="btnOfertasClearSelection">✖ Limpar Seleção</button>
+						</div>
+					</div>
 					<span id="ofertasVendaStatus" class="ofertas-venda-status warn">⚠ VendaDia.xls não encontrado na pasta</span>
 				</section>
 
@@ -1274,6 +1291,7 @@
 					<table class="data-table" id="tableOfertas">
 						<thead>
 							<tr>
+								<th class="col-select" title="Marcar/desmarcar todos os itens exibidos"><input type="checkbox" id="chkOfertasSelectAll"></th>
 								<th data-sort-key="descricao">Produto (MERC)</th>
                                 <th data-sort-key="embalagem" class="col-embalagem">Emb.</th>
                                 <th data-sort-key="estoqEmb1" class="col-estoque">Estoque (CX | UN)</th>
@@ -1281,6 +1299,7 @@
                                 <th data-sort-key="precoVenda" class="col-precoCx">Preço Cx.</th>
                                 <th data-sort-key="precoUnidade" class="col-precoUnd">Preço Und.</th>
                                 <th data-sort-key="precoOferta" class="col-precoOferta">Preço Oferta</th>
+								<th data-sort-key="prFixo" class="col-precoFixo" title="Preço fixo (S/N)">Preço Fixo</th>
 								<th data-sort-key="vendaOntem" class="col-vendaOntem" title="Venda do dia anterior (arquivo de venda atual)">Venda Dia Ant.</th>
                                 <th data-sort-key="idade" class="col-idade">Idade</th>
                                 <th data-sort-key="diasSemVenda" class="col-dias">Dias s/ Venda</th>
@@ -1299,7 +1318,6 @@
                                 <th data-sort-key="qtdUltEnt" class="col-qtdUltEnt">Qtd. Últ. Ent.</th>
                                 <th data-sort-key="bloq1" class="col-bloq1">Bloq 1</th>
                                 <th data-sort-key="bloq9" class="col-bloq9">Bloq 9</th>
-                                <th data-sort-key="prFixo" class="col-prFixo">Pr. Fixo</th>
                                 <th data-sort-key="pedFornec" class="col-pedFornec">Ped. Fornec.</th>
                                 <th data-sort-key="pedFilial" class="col-pedFilial">Ped. Filial</th>
                                 <th data-sort-key="pedFat" class="col-pedFat">Ped. N. Fat</th>
@@ -1307,7 +1325,7 @@
 						</thead>
 						<tbody id="ofertasTableBody">
 							<tr>
-								<td colspan="29" class="empty-state">Clique em “📋 Colar Dados” para importar a lista de códigos e preços da oferta.</td>
+								<td colspan="30" class="empty-state">Clique em “📋 Colar Dados” para importar a lista de códigos e preços da oferta.</td>
 							</tr>
 						</tbody>
 					</table>
@@ -1359,6 +1377,31 @@
                 <div class="modal-actions">
                     <button id="btnCancelTargetPdf" class="btn-secondary">Cancelar</button>
                     <button id="btnGenerateTargetPdf" class="btn-primary">Gerar PDF</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL PDF PARA CLIENTES (ABA OFERTAS) -->
+    <div id="modalOfertasCliente" class="modal-overlay hidden">
+        <div class="modal-card ofertas-modal-small">
+            <div class="modal-header">
+                <h3>🛍️ PDF para Clientes</h3>
+                <button id="btnCloseOfertasCliente" class="btn-close-modal">✖</button>
+            </div>
+            <div class="modal-body">
+                <p class="ofertas-hint">Informe o período da oferta. A data final aparece no cabeçalho: “Ofertas válidas até ...”.</p>
+                <div class="ofertas-date-row">
+                    <label>Data início <input type="date" id="ofertasDataIni"></label>
+                    <label>Data fim <input type="date" id="ofertasDataFim"></label>
+                </div>
+                <label id="lblOfertasClienteSel" class="ofertas-check hidden">
+                    <input type="checkbox" id="chkOfertasClienteSel"> <span id="txtOfertasClienteSel"></span>
+                </label>
+                <div id="ofertasClienteInfo" class="ofertas-summary"></div>
+                <div class="modal-actions">
+                    <button id="btnOfertasClienteCancel" class="btn-secondary">Cancelar</button>
+                    <button id="btnOfertasClienteGerar" class="btn-primary">Gerar PDF</button>
                 </div>
             </div>
         </div>

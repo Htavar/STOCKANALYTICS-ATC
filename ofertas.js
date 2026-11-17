@@ -26,6 +26,9 @@
         filterComprador: '',
         onlyStock: false,      // chave "Somente com Estoque"
         search: '',            // busca por código ou descrição
+        onlyBloq: false,       // chave "Produtos Bloqueados" (Preço Fixo = S)
+        selected: new Set(),   // ids das linhas marcadas (caixinha)
+        clienteDates: { ini: '', fim: '' },
         sort: { key: null, direction: 'asc' },
         vendaDia: { map: new Map(), status: 'sem_arquivo', dateLabel: '', fileName: '', origin: '' }
     };
@@ -314,6 +317,7 @@
     function applyPaste() {
         if (!ofertasState.pendingOffers.length) return;
         ofertasState.offers = ofertasState.pendingOffers.slice();
+        ofertasState.selected.clear();
         ofertasState.sort = { key: null, direction: 'asc' };
         closePasteModal();
         renderOfertasUI(true);
@@ -419,21 +423,25 @@
         const base = getBaseMap();
         ofertasState.rows = ofertasState.offers.map(o => {
             const item = base.get(o.id) || null;
-            let ref = null, refTipo = null, diff = null, divergente = false, semEstoque = false;
+            let ref = null, refTipo = null, diff = null, divergente = false, semEstoque = false, cmp = null, isKg = false;
             if (item) {
                 // Item "de KG" = vendido em KG (unidade de venda KG, ex.: "KG 1 X 1000 X 1KG").
                 // Embalagens como "FDO 1 X 6 5KG" só têm peso no nome: são comparadas pelo Preço Und.
-                const isKg = /^\s*KGS?\b/i.test(String(item.embalagem || ''));
+                isKg = /^\s*KGS?\b/i.test(String(item.embalagem || ''));
                 refTipo = isKg ? 'CX' : 'UN';
                 ref = isKg ? item.precoVenda : item.precoUnidade;
                 diff = o.preco - ref;
-                divergente = Math.round(o.preco * 100) !== Math.round(ref * 100);
+                const refC = Math.round(ref * 100), ofC = Math.round(o.preco * 100);
+                divergente = refC !== ofC;
+                cmp = refC > ofC ? 'maior' : (refC < ofC ? 'menor' : 'igual');   // preço ATUAL em relação à oferta
                 semEstoque = !(item.estoqEmb1 > 0 || item.estoqEmb9 > 0);
             }
             const vd = ofertasState.vendaDia;
             const vendaDia = (item && vd.status === 'ok') ? (vd.map.get(o.id) || { cx: 0, un: 0, valor: 0 }) : null;
             return { oferta: o, item: item, ref: ref, refTipo: refTipo, diff: diff, vendaDia: vendaDia,
-                     divergente: divergente, semEstoque: semEstoque, naoEncontrado: !item };
+                     divergente: divergente, semEstoque: semEstoque, naoEncontrado: !item,
+                     cmp: cmp, isKg: isKg,
+                     bloqueado: !!item && String(item.prFixo || '').trim().toUpperCase() === 'S' };
         });
     }
 
@@ -477,7 +485,10 @@
             }
             if (ofertasState.onlyStock && (r.naoEncontrado || r.semEstoque)) return false;
             if (tipo === 'sem_estoque' && !r.semEstoque) return false;
+            if (ofertasState.onlyBloq && !r.bloqueado) return false;
             if (tipo === 'divergente' && !r.divergente) return false;
+            if (tipo === 'atual_maior' && r.cmp !== 'maior') return false;
+            if (tipo === 'atual_menor' && r.cmp !== 'menor') return false;
             if (tipo === 'nao_encontrado' && !r.naoEncontrado) return false;
             if (comp && (!r.item || r.item.comprador !== comp)) return false;
             return true;
@@ -502,7 +513,7 @@
     // ------------------------------------------------------------------ render
     const COLS_APOS_OFERTA = ['col-idade', 'col-dias', 'col-autonomia', 'col-rentabilidade', 'col-fornecedor',
         'col-pedidos', 'col-sta', 'col-comprador', 'col-venda30Dias', 'col-grupo', 'col-classe', 'col-digito',
-        'col-qtdIdeal', 'col-dtUltEnt', 'col-qtdUltEnt', 'col-bloq1', 'col-bloq9', 'col-prFixo',
+        'col-qtdIdeal', 'col-dtUltEnt', 'col-qtdUltEnt', 'col-bloq1', 'col-bloq9',
         'col-pedFornec', 'col-pedFilial', 'col-pedFat'];
 
     function buildOfertaCell(r) {
@@ -520,6 +531,13 @@
             <span class="sub-text">${sign}${fmtTabela(Math.abs(r.diff))} vs ${tag}</span></td>`;
     }
 
+    function buildPrFixoCell(r) {
+        if (!r.item) return '<td class="col-precoFixo">-</td>';
+        const v = String(r.item.prFixo || '').trim().toUpperCase();
+        if (v === 'S') return '<td class="col-precoFixo"><span class="badge badge-warning">S</span></td>';
+        return `<td class="col-precoFixo">${esc(v || '-')}</td>`;
+    }
+
     function buildVendaCell(r) {
         if (r.naoEncontrado || !r.vendaDia) return '<td class="col-vendaOntem">-</td>';
         const cx = r.vendaDia.cx, v = r.vendaDia.valor;
@@ -530,9 +548,12 @@
 
     function buildRowHtml(r) {
         const item = r.item;
+        const isSel = ofertasState.selected.has(r.oferta.id);
+        const chkTd = `<td class="col-select"><input type="checkbox" class="row-select-chk" data-id="${esc(r.oferta.id)}" ${isSel ? 'checked' : ''} title="Selecionar para o PDF de Itens Selecionados"></td>`;
 
         if (!item) {
-            return `<tr class="ofertas-row-notfound">
+            return `<tr class="ofertas-row-notfound ${isSel ? 'row-selected' : ''}">
+                ${chkTd}
                 <td><strong>Código não encontrado na base</strong><span class="sub-text">Cód: ${esc(r.oferta.codigoDigitado)}</span></td>
                 <td class="col-embalagem">-</td>
                 <td class="col-estoque">-</td>
@@ -540,6 +561,7 @@
                 <td class="col-precoCx">-</td>
                 <td class="col-precoUnd">-</td>
                 ${buildOfertaCell(r)}
+                ${buildPrFixoCell(r)}
                 ${buildVendaCell(r)}
                 ${COLS_APOS_OFERTA.map(c => `<td class="${c}">-</td>`).join('')}
             </tr>`;
@@ -562,11 +584,14 @@
         const idadeInt = Math.round(item.idade);
         const idadeBadgeClass = idadeInt > 80 ? 'badge badge-idade-critical' : '';
 
-        const refCx = r.refTipo === 'CX' ? ' ofertas-ref-price' : '';
-        const refUn = r.refTipo === 'UN' ? ' ofertas-ref-price' : '';
+        // Preço atual usado na comparação: laranja = maior que a oferta | verde = menor | azul = igual
+        const refCls = ' ofertas-ref-price ofertas-ref-' + r.cmp;
+        const refCx = r.refTipo === 'CX' ? refCls : '';
+        const refUn = r.refTipo === 'UN' ? refCls : '';
 
         return `
-        <tr class="${r.semEstoque ? 'ofertas-row-noStock' : ''}">
+        <tr class="${r.semEstoque ? 'ofertas-row-noStock' : ''} ${isSel ? 'row-selected' : ''}">
+            ${chkTd}
             <td>
                 <strong>${esc(item.descricao)}</strong>
                 <span class="sub-text">Cód: ${esc(item.codigoCompleto)}</span>
@@ -582,6 +607,7 @@
             <td class="col-precoCx${refCx}">${fmtTabela(item.precoVenda)}</td>
             <td class="col-precoUnd${refUn}">${fmtTabela(item.precoUnidade)}</td>
             ${buildOfertaCell(r)}
+            ${buildPrFixoCell(r)}
             ${buildVendaCell(r)}
             <td class="col-idade"><span class="${idadeBadgeClass}">${idadeInt} d</span></td>
             <td class="col-dias"><span class="badge ${riskBadgeClass}">${item.diasSemVenda} d</span></td>
@@ -600,11 +626,31 @@
             <td class="col-qtdUltEnt">${item.qtdUltEnt.toLocaleString('pt-BR')}</td>
             <td class="col-bloq1">${esc(item.bloq1)}</td>
             <td class="col-bloq9">${esc(item.bloq9)}</td>
-            <td class="col-prFixo">${esc(item.prFixo)}</td>
             <td class="col-pedFornec">${item.pedFornec.toLocaleString('pt-BR')}</td>
             <td class="col-pedFilial">${item.pedFilial.toLocaleString('pt-BR')}</td>
             <td class="col-pedFat">${item.pedFat.toLocaleString('pt-BR')}</td>
         </tr>`;
+    }
+
+    // ---------------------------------------------------------------- seleção
+    function getSelectedRows() {
+        if (!ofertasState.selected.size) return [];
+        const shown = getFilteredSortedRows().filter(r => ofertasState.selected.has(r.oferta.id));
+        const seen = new Set(shown);
+        const hidden = ofertasState.rows.filter(r => ofertasState.selected.has(r.oferta.id) && !seen.has(r));
+        return shown.concat(hidden);
+    }
+
+    function updateSelectionUI(rowsShown) {
+        const btn = $('btnOfertasPdfSelecionados');
+        if (btn) btn.textContent = `✅ Itens Selecionados (${ofertasState.selected.size})`;
+        const chkAll = $('chkOfertasSelectAll');
+        if (chkAll) {
+            const rows = rowsShown || getFilteredSortedRows();
+            const n = rows.filter(r => ofertasState.selected.has(r.oferta.id)).length;
+            chkAll.checked = rows.length > 0 && n === rows.length;
+            chkAll.indeterminate = n > 0 && n < rows.length;
+        }
     }
 
     function updateKpis(rows) {
@@ -652,6 +698,7 @@
 
         updateKpis(rows);
         updateSortIcons();
+        updateSelectionUI(rows);
 
         const thVenda = document.querySelector('#tableOfertas th.col-vendaOntem');
         if (thVenda) {
@@ -666,17 +713,17 @@
 
         const tbody = $('ofertasTableBody');
         if (!hasOffers) {
-            tbody.innerHTML = `<tr><td colspan="29" class="empty-state">Clique em “📋 Colar Dados” para importar a lista de códigos e preços da oferta.</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="30" class="empty-state">Clique em “📋 Colar Dados” para importar a lista de códigos e preços da oferta.</td></tr>`;
             $('ofertasPageInfo').textContent = 'Nenhuma oferta importada';
             return;
         }
         if (!hasBase) {
-            tbody.innerHTML = `<tr><td colspan="29" class="empty-state">${ofertasState.offers.length} itens de oferta importados. Selecione a pasta com os arquivos de dados para cruzar com a base e conferir os preços.</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="30" class="empty-state">${ofertasState.offers.length} itens de oferta importados. Selecione a pasta com os arquivos de dados para cruzar com a base e conferir os preços.</td></tr>`;
             $('ofertasPageInfo').textContent = `${ofertasState.offers.length} itens aguardando a base de dados`;
             return;
         }
         if (!rows.length) {
-            tbody.innerHTML = `<tr><td colspan="29" class="empty-state">Nenhum item da oferta encontrado para os filtros selecionados.</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="30" class="empty-state">Nenhum item da oferta encontrado para os filtros selecionados.</td></tr>`;
         } else {
             tbody.innerHTML = rows.map(buildRowHtml).join('');
         }
@@ -692,13 +739,18 @@
         '': 'Todos os itens',
         'sem_estoque': 'Itens sem estoque',
         'divergente': 'Preços divergentes',
+        'atual_maior': 'Preço atual maior que a oferta',
+        'atual_menor': 'Preço atual menor que a oferta',
         'nao_encontrado': 'Códigos não encontrados'
     };
 
-    function exportOfertasPDF() {
-        const rows = getFilteredSortedRows();
+    function exportOfertasPDF(mode) {
+        const isSel = mode === 'selecionados';
+        const rows = isSel ? getSelectedRows() : getFilteredSortedRows();
         if (!rows.length) {
-            alert('Não há itens da oferta para gerar o PDF (verifique os filtros).');
+            alert(isSel
+                ? 'Nenhum item selecionado. Marque as caixinhas na frente dos produtos para gerar este PDF.'
+                : 'Não há itens da oferta para gerar o PDF (verifique os filtros).');
             return;
         }
         if (!window.jspdf) {
@@ -734,10 +786,16 @@
         const dateFormatted = now.toLocaleDateString('pt-BR');
         const generationStamp = `Gerado em: ${dateFormatted} às ${now.toLocaleTimeString('pt-BR')}`;
 
-        let filtroTxt = `Filtro: ${TIPO_LABEL[ofertasState.filterTipo] || 'Todos os itens'}`;
-        if (ofertasState.filterComprador) filtroTxt += `  |  Comprador: ${ofertasState.filterComprador}`;
-        if (ofertasState.onlyStock) filtroTxt += '  |  Somente com Estoque';
-        if (ofertasState.search.trim()) filtroTxt += `  |  Busca: ${ofertasState.search.trim()}`;
+        let filtroTxt;
+        if (isSel) {
+            filtroTxt = `Itens selecionados: ${rows.length}`;
+        } else {
+            filtroTxt = `Filtro: ${TIPO_LABEL[ofertasState.filterTipo] || 'Todos os itens'}`;
+            if (ofertasState.filterComprador) filtroTxt += `  |  Comprador: ${ofertasState.filterComprador}`;
+            if (ofertasState.onlyStock) filtroTxt += '  |  Somente com Estoque';
+            if (ofertasState.onlyBloq) filtroTxt += '  |  Produtos Bloqueados (Preço Fixo = S)';
+            if (ofertasState.search.trim()) filtroTxt += `  |  Busca: ${ofertasState.search.trim()}`;
+        }
 
         doc.autoTable({
             head: headers,
@@ -776,7 +834,7 @@
                 doc.setFontSize(9);
                 doc.setFont('helvetica', 'bold');
                 doc.setTextColor(11, 17, 32);
-                doc.text('StockAnalytics - RELATÓRIO DE OFERTAS', 6, 9);
+                doc.text(isSel ? 'StockAnalytics - RELATÓRIO DE OFERTAS - ITENS SELECIONADOS' : 'StockAnalytics - RELATÓRIO DE OFERTAS', 6, 9);
 
                 doc.setFontSize(6.5);
                 doc.setFont('helvetica', 'normal');
@@ -808,7 +866,144 @@
             doc.text(`Página ${i} de ${totalPages}`, doc.internal.pageSize.width - 25, doc.internal.pageSize.height - 4);
         }
 
-        doc.save(`Relatorio_Ofertas_${dateFormatted.replace(/\//g, '-')}.pdf`);
+        doc.save(`Relatorio_Ofertas${isSel ? '_Selecionados' : ''}_${dateFormatted.replace(/\//g, '-')}.pdf`);
+    }
+
+    // ------------------------------------------------------- PDF PARA CLIENTES
+    // Formato de divulgação: cabeçalho "OFERTAS VÁLIDAS ATÉ dd/mm/aaaa", sem códigos,
+    // colunas Produto | Embalagem | Preço (itens de KG levam "kg" no preço),
+    // retrato A4 ocupando a folha de lado a lado (margens mínimas).
+    function fmtDataBR(iso) {
+        const p = String(iso).split('-');
+        return `${p[2]}/${p[1]}/${p[0]}`;
+    }
+
+    function isoHoje(offsetDias) {
+        const d = new Date();
+        const x = new Date(d.getFullYear(), d.getMonth(), d.getDate() + (offsetDias || 0));
+        return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`;
+    }
+
+    function clienteRowsBase() {
+        const selVisivel = !$('lblOfertasClienteSel').classList.contains('hidden');
+        const onlySel = selVisivel && $('chkOfertasClienteSel').checked;
+        return onlySel ? getSelectedRows() : getFilteredSortedRows();
+    }
+
+    function refreshClienteInfo() {
+        const all = clienteRowsBase();
+        const n = all.filter(r => r.item).length;
+        const om = all.length - n;
+        let txt = `<strong>${n}</strong> itens no PDF`;
+        if (om) txt += ` · <span class="ofertas-warn">${om} não encontrados na base ficam de fora</span>`;
+        if (!$('lblOfertasClienteSel').classList.contains('hidden') && !$('chkOfertasClienteSel').checked) txt += ' · respeita os filtros atuais';
+        $('ofertasClienteInfo').innerHTML = txt;
+    }
+
+    function openClienteModal() {
+        const nSel = ofertasState.selected.size;
+        const lbl = $('lblOfertasClienteSel');
+        if (nSel > 0) {
+            lbl.classList.remove('hidden');
+            $('txtOfertasClienteSel').textContent = `Somente os ${nSel} itens selecionados`;
+            $('chkOfertasClienteSel').checked = true;
+        } else {
+            lbl.classList.add('hidden');
+            $('chkOfertasClienteSel').checked = false;
+        }
+        $('ofertasDataIni').value = ofertasState.clienteDates.ini || isoHoje(0);
+        $('ofertasDataFim').value = ofertasState.clienteDates.fim || isoHoje(6);
+        refreshClienteInfo();
+        $('modalOfertasCliente').classList.remove('hidden');
+    }
+
+    function closeClienteModal() {
+        $('modalOfertasCliente').classList.add('hidden');
+    }
+
+    function gerarPdfClientes() {
+        const ini = $('ofertasDataIni').value;
+        const fim = $('ofertasDataFim').value;
+        if (!ini || !fim) {
+            alert('Informe a data de início e a data de fim da oferta.');
+            return;
+        }
+        if (fim < ini) {
+            alert('A data de fim não pode ser anterior à data de início.');
+            return;
+        }
+        const rows = clienteRowsBase().filter(r => r.item);
+        if (!rows.length) {
+            alert('Não há itens da oferta para gerar o PDF (verifique os filtros ou a seleção).');
+            return;
+        }
+        if (!window.jspdf) {
+            alert('Biblioteca de PDF não carregada.');
+            return;
+        }
+        ofertasState.clienteDates = { ini: ini, fim: fim };
+        closeClienteModal();
+        exportOfertasClientesPDF(rows, ini, fim);
+    }
+
+    function exportOfertasClientesPDF(rows, iniIso, fimIso) {
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+        const pageW = doc.internal.pageSize.getWidth();
+        const pageH = doc.internal.pageSize.getHeight();
+        const M = 4;               // margem lateral mínima (mm)
+        const bannerH = 26;        // altura do cabeçalho em estilo de oferta
+        const iniBR = fmtDataBR(iniIso), fimBR = fmtDataBR(fimIso);
+
+        const bodyData = rows.map(r => [
+            r.item.descricao,
+            r.item.embalagem || '',
+            fmtPdf(r.oferta.preco) + (r.isKg ? ' kg' : '')
+        ]);
+
+        doc.autoTable({
+            head: [['Produto', 'Embalagem', 'Preço']],
+            body: bodyData,
+            startY: bannerH + 3.5,
+            margin: { top: bannerH + 3.5, bottom: 8, left: M, right: M },
+            tableWidth: pageW - 2 * M,
+            theme: 'grid',
+            styles: { fontSize: 9.5, cellPadding: { top: 2.2, bottom: 2.2, left: 2.5, right: 2.5 }, valign: 'middle',
+                      overflow: 'linebreak', lineColor: [226, 232, 240], lineWidth: 0.2, textColor: [15, 23, 42] },
+            headStyles: { fillColor: [17, 24, 39], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 10, halign: 'center' },
+            alternateRowStyles: { fillColor: [254, 242, 242] },
+            columnStyles: {
+                0: { cellWidth: pageW - 2 * M - 84, fontStyle: 'bold' },
+                1: { cellWidth: 40, halign: 'center', fontSize: 9 },
+                2: { cellWidth: 44, halign: 'right', fontStyle: 'bold', fontSize: 12, textColor: [185, 28, 28] }
+            },
+            didDrawPage: () => {
+                // Faixa de oferta de ponta a ponta
+                doc.setFillColor(220, 38, 38);
+                doc.rect(0, 0, pageW, bannerH, 'F');
+                doc.setFillColor(250, 204, 21);
+                doc.rect(0, bannerH, pageW, 1.6, 'F');
+
+                doc.setTextColor(255, 255, 255);
+                doc.setFont('helvetica', 'bold');
+                doc.setFontSize(21);
+                doc.text(`OFERTAS VÁLIDAS ATÉ ${fimBR}`, pageW / 2, 12.5, { align: 'center' });
+                doc.setFontSize(10);
+                doc.setFont('helvetica', 'normal');
+                doc.text(`Período: ${iniBR} a ${fimBR}`, pageW / 2, 20, { align: 'center' });
+            }
+        });
+
+        const totalPages = doc.internal.getNumberOfPages();
+        for (let i = 1; i <= totalPages; i++) {
+            doc.setPage(i);
+            doc.setFontSize(7);
+            doc.setFont('helvetica', 'normal');
+            doc.setTextColor(100, 116, 139);
+            doc.text(`Página ${i} de ${totalPages}`, pageW / 2, pageH - 3, { align: 'center' });
+        }
+
+        doc.save(`Ofertas_Clientes_ate_${fimBR.replace(/\//g, '-')}.pdf`);
     }
 
     // ------------------------------------------------------------------ eventos
@@ -816,9 +1011,11 @@
         ofertasState.filterTipo = '';
         ofertasState.filterComprador = '';
         ofertasState.onlyStock = false;
+        ofertasState.onlyBloq = false;
         ofertasState.search = '';
         $('searchOfertas').value = '';
         $('toggleOfertasOnlyStock').checked = false;
+        $('toggleOfertasOnlyBloq').checked = false;
         $('filterOfertasTipo').value = '';
         ofertasState.sort = { key: null, direction: 'asc' };
         renderOfertasUI(true);
@@ -832,9 +1029,12 @@
         ofertasState.filterTipo = '';
         ofertasState.filterComprador = '';
         ofertasState.onlyStock = false;
+        ofertasState.onlyBloq = false;
+        ofertasState.selected.clear();
         ofertasState.search = '';
         $('searchOfertas').value = '';
         $('toggleOfertasOnlyStock').checked = false;
+        $('toggleOfertasOnlyBloq').checked = false;
         ofertasState.sort = { key: null, direction: 'asc' };
         $('filterOfertasTipo').value = '';
         renderOfertasUI(true);
@@ -874,7 +1074,54 @@
 
         $('btnOfertasClearFilters').addEventListener('click', clearFilters);
         $('btnOfertasClearData').addEventListener('click', clearData);
-        $('btnOfertasPdf').addEventListener('click', exportOfertasPDF);
+        $('toggleOfertasOnlyBloq').addEventListener('change', (e) => {
+            ofertasState.onlyBloq = e.target.checked;
+            renderOfertasUI(true);
+        });
+
+        // Seleção de linhas (caixinhas)
+        $('ofertasTableBody').addEventListener('change', (e) => {
+            const chk = e.target.closest('.row-select-chk');
+            if (!chk) return;
+            const id = chk.getAttribute('data-id');
+            if (chk.checked) ofertasState.selected.add(id);
+            else ofertasState.selected.delete(id);
+            const tr = chk.closest('tr');
+            if (tr) tr.classList.toggle('row-selected', chk.checked);
+            updateSelectionUI();
+        });
+        $('chkOfertasSelectAll').addEventListener('change', (e) => {
+            const checked = e.target.checked;
+            getFilteredSortedRows().forEach(r => {
+                if (checked) ofertasState.selected.add(r.oferta.id);
+                else ofertasState.selected.delete(r.oferta.id);
+            });
+            renderOfertasUI(true);
+        });
+
+        // Menu de PDF
+        const ddPdf = $('dropdownOfertasPdf');
+        $('btnOfertasPdf').addEventListener('click', (e) => {
+            e.stopPropagation();
+            ddPdf.classList.toggle('hidden');
+        });
+        document.addEventListener('click', (e) => {
+            if (!ddPdf.classList.contains('hidden') && !e.target.closest('#ofertasPdfWrapper')) ddPdf.classList.add('hidden');
+        });
+        $('btnOfertasPdfConferencia').addEventListener('click', () => { ddPdf.classList.add('hidden'); exportOfertasPDF('filtrado'); });
+        $('btnOfertasPdfSelecionados').addEventListener('click', () => { ddPdf.classList.add('hidden'); exportOfertasPDF('selecionados'); });
+        $('btnOfertasPdfClientes').addEventListener('click', () => { ddPdf.classList.add('hidden'); openClienteModal(); });
+        $('btnOfertasClearSelection').addEventListener('click', () => {
+            ddPdf.classList.add('hidden');
+            ofertasState.selected.clear();
+            renderOfertasUI(true);
+        });
+
+        // Modal do PDF para clientes
+        $('btnCloseOfertasCliente').addEventListener('click', closeClienteModal);
+        $('btnOfertasClienteCancel').addEventListener('click', closeClienteModal);
+        $('btnOfertasClienteGerar').addEventListener('click', gerarPdfClientes);
+        $('chkOfertasClienteSel').addEventListener('change', refreshClienteInfo);
 
         document.querySelectorAll('#tableOfertas th[data-sort-key]').forEach(th => {
             th.addEventListener('click', () => {
