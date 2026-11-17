@@ -1240,8 +1240,9 @@
 
 				<section class="controls-section" style="margin-top: 0.25rem;">
 					<button id="btnOfertasPaste" class="btn-primary">📋 Colar Dados</button>
-					<button id="btnOfertasVendaDia" class="btn-secondary" title="Carregar o arquivo de venda do dia anterior (mesmo formato do VendaAtual, com o período de ontem)">📅 Venda Dia Ant.</button>
-					<input type="file" id="inputOfertasVendaDia" accept=".xls,.xlsx,.csv" class="hidden">
+					<div class="search-column">
+						<input type="text" id="searchOfertas" placeholder="Buscar produto ou código..." autocomplete="off">
+					</div>
 
 					<div class="filter-group">
 						<select id="filterOfertasTipo">
@@ -1266,7 +1267,7 @@
 					<button id="btnOfertasClearFilters" class="btn-clear" title="Limpar Filtros">🧹 Limpar Filtros</button>
 					<button id="btnOfertasClearData" class="btn-clear" title="Limpar dados da oferta" disabled>🗑️ Limpar Dados</button>
 					<button id="btnOfertasPdf" class="btn-pdf" title="Gerar PDF da oferta" disabled>📄 Gerar PDF</button>
-					<span id="ofertasVendaStatus" class="ofertas-venda-status warn">⚠ Venda do dia anterior não carregada</span>
+					<span id="ofertasVendaStatus" class="ofertas-venda-status warn">⚠ VendaDia.xls não encontrado na pasta</span>
 				</section>
 
 				<section class="table-container">

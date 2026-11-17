@@ -25,6 +25,7 @@
         filterTipo: '',
         filterComprador: '',
         onlyStock: false,      // chave "Somente com Estoque"
+        search: '',            // busca por código ou descrição
         sort: { key: null, direction: 'asc' },
         vendaDia: { map: new Map(), status: 'sem_arquivo', dateLabel: '', fileName: '', origin: '' }
     };
@@ -92,6 +93,10 @@
         const id = sanitizeProductCode(s);
         if (!id || id === '0') return null;
         return { id: id, raw: s };
+    }
+
+    function normTxt(v) {
+        return String(v === null || v === undefined ? '' : v).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
     }
 
     function getBaseMap() {
@@ -351,12 +356,9 @@
     }
 
     function computeVendaDiaAnterior(rows, fileName, origin) {
-        // Recarregar a pasta sem arquivo do dia não apaga o que foi carregado manualmente
-        if ((!rows || !rows.length) && origin === 'pasta' && ofertasState.vendaDia.origin === 'manual') return;
-
         const res = { map: new Map(), status: 'sem_arquivo', dateLabel: '', dateOk: true, fileName: fileName || '', origin: origin || '' };
         ofertasState.vendaDia = res;
-        if (!rows || !rows.length) { if (origin === 'manual') res.status = 'vazio'; return; }
+        if (!rows || !rows.length) return;
 
         const first = rows[0];
         const kCx = pickKey(first, ['EMB1', 'EMB 1', 'CAIXAS', 'QTD.CX']);
@@ -406,9 +408,8 @@
             return `Venda Dia Ant.: ${vd.dateLabel || 'arquivo do dia'}${vd.dateLabel && !vd.dateOk ? ' ⚠ data diferente de ontem' : ''}`;
         }
         const motivo = {
-            'sem_arquivo': 'nenhum arquivo de venda do dia carregado (use o botão 📅 Venda Dia Ant. ou coloque "VendaDia" no nome do arquivo na pasta)',
-            'sem_colunas': 'o arquivo do dia não tem a coluna EMB1',
-            'vazio': 'o arquivo carregado está vazio'
+            'sem_arquivo': 'arquivo VendaDia.xls não encontrado na pasta (rode o Baixar_051.bat e selecione a pasta novamente)',
+            'sem_colunas': 'o arquivo VendaDia não tem a coluna EMB1'
         }[vd.status] || 'sem dados';
         return `Venda Dia Ant. indisponível: ${motivo}`;
     }
@@ -465,8 +466,15 @@
     function getFilteredSortedRows() {
         const tipo = ofertasState.filterTipo;
         const comp = ofertasState.filterComprador;
+        const terms = normTxt(ofertasState.search).split(/\s+/).filter(Boolean);
 
         let rows = ofertasState.rows.filter(r => {
+            if (terms.length) {
+                const hay = r.item
+                    ? normTxt(`${r.item.descricao} ${r.item.codigoCompleto} ${r.item.id}`)
+                    : normTxt(`${r.oferta.codigoDigitado} ${r.oferta.id}`);
+                if (!terms.every(t => hay.includes(t))) return false;
+            }
             if (ofertasState.onlyStock && (r.naoEncontrado || r.semEstoque)) return false;
             if (tipo === 'sem_estoque' && !r.semEstoque) return false;
             if (tipo === 'divergente' && !r.divergente) return false;
@@ -618,23 +626,8 @@
             el.textContent = `✔ ${vd.fileName || 'Venda do dia'}${vd.dateLabel ? ' · ' + vd.dateLabel : ''} · ${vd.map.size.toLocaleString('pt-BR')} produtos`;
         } else {
             el.className = 'ofertas-venda-status warn';
-            el.textContent = vd.status === 'sem_colunas' ? '⚠ Arquivo sem coluna EMB1' : '⚠ Venda do dia anterior não carregada';
+            el.textContent = vd.status === 'sem_colunas' ? '⚠ VendaDia sem coluna EMB1' : '⚠ VendaDia.xls não encontrado na pasta';
         }
-    }
-
-    async function onVendaDiaFile(e) {
-        const file = e.target.files && e.target.files[0];
-        e.target.value = '';
-        if (!file) return;
-        try {
-            const rows = await parseFileToJSON(file);
-            computeVendaDiaAnterior(rows, file.name, 'manual');
-            if (ofertasState.vendaDia.status !== 'ok') alert('Não foi possível usar o arquivo: ' + vendaDiaMensagem());
-        } catch (err) {
-            console.error(err);
-            alert('Não foi possível ler o arquivo: ' + file.name);
-        }
-        renderOfertasUI(true);
     }
 
     function updateSortIcons() {
@@ -744,6 +737,7 @@
         let filtroTxt = `Filtro: ${TIPO_LABEL[ofertasState.filterTipo] || 'Todos os itens'}`;
         if (ofertasState.filterComprador) filtroTxt += `  |  Comprador: ${ofertasState.filterComprador}`;
         if (ofertasState.onlyStock) filtroTxt += '  |  Somente com Estoque';
+        if (ofertasState.search.trim()) filtroTxt += `  |  Busca: ${ofertasState.search.trim()}`;
 
         doc.autoTable({
             head: headers,
@@ -822,6 +816,8 @@
         ofertasState.filterTipo = '';
         ofertasState.filterComprador = '';
         ofertasState.onlyStock = false;
+        ofertasState.search = '';
+        $('searchOfertas').value = '';
         $('toggleOfertasOnlyStock').checked = false;
         $('filterOfertasTipo').value = '';
         ofertasState.sort = { key: null, direction: 'asc' };
@@ -836,6 +832,8 @@
         ofertasState.filterTipo = '';
         ofertasState.filterComprador = '';
         ofertasState.onlyStock = false;
+        ofertasState.search = '';
+        $('searchOfertas').value = '';
         $('toggleOfertasOnlyStock').checked = false;
         ofertasState.sort = { key: null, direction: 'asc' };
         $('filterOfertasTipo').value = '';
@@ -846,8 +844,6 @@
         if (!$('tab-ofertas')) return;
 
         $('btnOfertasPaste').addEventListener('click', openPasteModal);
-        $('btnOfertasVendaDia').addEventListener('click', () => $('inputOfertasVendaDia').click());
-        $('inputOfertasVendaDia').addEventListener('change', onVendaDiaFile);
         $('btnCloseOfertasPaste').addEventListener('click', closePasteModal);
         $('btnOfertasPasteCancel').addEventListener('click', closePasteModal);
         $('btnOfertasPasteApply').addEventListener('click', applyPaste);
@@ -862,6 +858,13 @@
         $('filterOfertasComprador').addEventListener('change', (e) => {
             ofertasState.filterComprador = e.target.value;
             renderOfertasUI(true);
+        });
+
+        let searchTimer = null;
+        $('searchOfertas').addEventListener('input', (e) => {
+            ofertasState.search = e.target.value;
+            clearTimeout(searchTimer);
+            searchTimer = setTimeout(() => renderOfertasUI(true), 150);
         });
 
         $('toggleOfertasOnlyStock').addEventListener('change', (e) => {
