@@ -181,6 +181,8 @@ async function handlePerdasFolderSelect(e) {
             statePerdas.filteredData = [...statePerdas.rawProcessedData];
             populatePerdasRichDropdowns();
             applyPerdasFilters();
+            // Aba Perdas por Evento: atualiza com os dados recém-carregados
+            if (typeof renderPerdasEventoTab === 'function') renderPerdasEventoTab();
         }
     } catch (err) {
         console.error("Erro ao carregar arquivos de perda:", err);
@@ -259,6 +261,7 @@ function processPerdasDataDetailed(jsonAtual, jsonAnterior) {
                 descricao: row['DESCRICAO'] || 'Produto Sem Descrição',
                 embalagem: row['EMBALAGEM'] || '-',
                 evento: eventoStr,
+                eventoDescricao: String(row['DESCR.EVENTO'] || row['DESCR_EVENTO'] || row['DESCRICAO EVENTO'] || row['DESCR EVENTO'] || '').trim(),
                 operacao: operacaoStr,
                 grupo: row['GRUPO'] || 'N/A',
                 subgrupo: row['SUB-GRUPO'] || row['SUBGRUPO'] || 'N/A',
@@ -296,6 +299,7 @@ function processPerdasDataDetailed(jsonAtual, jsonAnterior) {
                 descricao: row['DESCRICAO'] || 'Produto Sem Descrição',
                 embalagem: row['EMBALAGEM'] || '-',
                 evento: eventoStr,
+                eventoDescricao: String(row['DESCR.EVENTO'] || row['DESCR_EVENTO'] || row['DESCRICAO EVENTO'] || row['DESCR EVENTO'] || '').trim(),
                 operacao: operacaoStr,
                 grupo: row['GRUPO'] || 'N/A',
                 subgrupo: row['SUB-GRUPO'] || row['SUBGRUPO'] || 'N/A',
@@ -329,6 +333,7 @@ function processPerdasDataDetailed(jsonAtual, jsonAnterior) {
             descricao: det.descricao || 'Produto Sem Descrição',
             embalagem: det.embalagem || '-',
             evento: det.evento || 'N/A',
+            eventoDescricao: det.eventoDescricao || '',
             operacao: det.operacao || 'N/A',
             grupo: det.grupo || 'N/A',
             subgrupo: det.subgrupo || 'N/A',

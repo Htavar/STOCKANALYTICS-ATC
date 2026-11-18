@@ -15,6 +15,7 @@
 	<link rel="stylesheet" href="perdas.css">
 	<!-- Estilo Gráfico de Perdas -->
 	<link rel="stylesheet" href="grafico_perdas.css">
+	<link rel="stylesheet" href="perdas_evento.css">
 	<link rel="stylesheet" href="ofertas.css">
 	
     <!-- SheetJS CDN -->
@@ -52,6 +53,7 @@
 				<button class="tab-btn" data-tab="tab-pedidos">🛒 Pedidos</button>
 				<button class="tab-btn" data-tab="tab-perdas">🗑️ Perdas</button>
 				<button class="tab-btn" data-tab="tab-grafico-perdas">📊 Gráfico Perdas</button>
+				<button class="tab-btn" data-tab="tab-perdas-evento">🧭 Perdas por Evento</button>
 				<button class="tab-btn" data-tab="tab-ofertas">🏷️ Ofertas</button>
             </nav>
 
@@ -1214,6 +1216,102 @@
                     <button id="btnNextPage" class="btn-secondary" disabled>Próxima ▶</button>
                 </div>
             </div>
+			<!-- ABA PERDAS POR EVENTO -->
+			<div id="tab-perdas-evento" class="tab-content hidden">
+
+				<section class="bento-grid">
+					<div class="bento-card">
+						<span class="card-label">Perda Atual</span>
+						<strong class="card-value" id="peKpiAtual">R$ 0,00</strong>
+					</div>
+					<div class="bento-card">
+						<span class="card-label">Perda Anterior</span>
+						<strong class="card-value" id="peKpiAnterior">R$ 0,00</strong>
+					</div>
+					<div class="bento-card">
+						<span class="card-label">Variação (Atual - Anterior)</span>
+						<strong class="card-value" id="peKpiVariacao">R$ 0,00</strong>
+					</div>
+					<div class="bento-card">
+						<span class="card-label">Eventos</span>
+						<strong class="card-value" id="peKpiEventos">0</strong>
+					</div>
+					<div class="bento-card critical">
+						<span class="card-label">Maior Evento de Perda</span>
+						<strong class="card-value" id="peKpiMaior">-</strong>
+						<span class="sub-text" id="peKpiMaiorSub"></span>
+					</div>
+				</section>
+
+				<section class="controls-section" style="margin-top: 0.25rem;">
+					<div class="filter-group">
+						<select id="peMode" title="Quais valores entram na soma">
+							<option value="perdas">Somente perdas (faltas)</option>
+							<option value="liquido">Líquido (perdas + sobras)</option>
+							<option value="sobras">Somente sobras</option>
+						</select>
+						<select id="peSort" title="Critério de ordenação (maior perda primeiro)">
+							<option value="atual">Ordenar: Perda Atual</option>
+							<option value="anterior">Ordenar: Perda Anterior</option>
+							<option value="variacao">Ordenar: Variação</option>
+						</select>
+						<select id="peEvento"><option value="">Evento (Todos)</option></select>
+						<select id="peComprador"><option value="">Comprador (Todos)</option></select>
+					</div>
+
+					<div class="search-column">
+						<input type="text" id="peSearch" placeholder="Buscar evento, grupo, classe, produto ou código..." autocomplete="off">
+					</div>
+
+					<div class="filter-group">
+						<select id="peDepth" title="Até que nível o Expandir e o PDF Detalhado vão">
+							<option value="1">Detalhar até: Grupo</option>
+							<option value="2">Detalhar até: Subgrupo</option>
+							<option value="3" selected>Detalhar até: Classe</option>
+							<option value="4">Detalhar até: Item</option>
+						</select>
+						<select id="peTop" title="Mostra só os maiores de cada nível e junta o resto em Demais">
+							<option value="0" selected>Todos por nível</option>
+							<option value="5">Top 5 por nível</option>
+							<option value="10">Top 10 por nível</option>
+							<option value="20">Top 20 por nível</option>
+						</select>
+					</div>
+
+					<button id="btnPeExpand" class="btn-secondary" title="Expande a árvore até o nível escolhido">⤵ Expandir</button>
+					<button id="btnPeCollapse" class="btn-secondary">⤴ Recolher</button>
+					<button id="btnPeClear" class="btn-clear" title="Limpar Filtros">🧹 Limpar Filtros</button>
+
+					<div class="dropdown-wrapper" id="pePdfWrapper">
+						<button id="btnPePdf" class="btn-pdf" title="Exportar PDF">📄 PDF ▾</button>
+						<div id="dropdownPePdf" class="dropdown-menu hidden">
+							<button id="btnPePdfResumo">📄 Resumo (eventos + 5 maiores grupos)</button>
+							<button id="btnPePdfDetalhado">📑 Detalhado (até o nível escolhido)</button>
+						</div>
+					</div>
+				</section>
+
+				<section class="table-container">
+					<table class="data-table" id="tablePerdasEvento">
+						<thead>
+							<tr>
+								<th>Evento ▸ Grupo ▸ Subgrupo ▸ Classe ▸ Item</th>
+								<th title="Perda do período atual">Perda Atual</th>
+								<th title="Perda do período anterior">Perda Anterior</th>
+								<th title="Atual - Anterior (verde = perdeu menos, vermelho = perdeu mais)">Variação</th>
+								<th title="Participação dentro do nível acima (o evento é % do total)">% nível acima</th>
+								<th>Participação</th>
+								<th title="Quantidade de lançamentos (produto x evento x operação)">Itens</th>
+							</tr>
+						</thead>
+						<tbody id="peTableBody">
+							<tr><td colspan="7" class="empty-state">Carregue a pasta com os arquivos de perdas (PerdaAtual / PerdaAnterior) para ver a análise por evento.</td></tr>
+						</tbody>
+					</table>
+				</section>
+				<div class="pe-info-bar"><span id="peInfo">Sem dados de perdas</span></div>
+			</div>
+
 			<!-- ABA OFERTAS -->
 			<div id="tab-ofertas" class="tab-content hidden">
 
@@ -1535,6 +1633,7 @@
     <script src="pedidos.js"></script>
     <script src="perdas.js"></script>
 	<script src="grafico_perdas.js"></script>
+	<script src="perdas_evento.js"></script>
 	<script src="ofertas.js"></script>
 </body>
 </html>
