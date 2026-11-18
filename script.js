@@ -151,7 +151,14 @@ document.addEventListener('DOMContentLoaded', () => {
         btnCloseTargetPdf: document.getElementById('btnCloseTargetPdf'),
         btnCancelTargetPdf: document.getElementById('btnCancelTargetPdf'),
         btnGenerateTargetPdf: document.getElementById('btnGenerateTargetPdf'),
-        inputTargetValue: document.getElementById('inputTargetValue')
+        inputTargetValue: document.getElementById('inputTargetValue'),
+        btnExportTopPdf: document.getElementById('btnExportTopPdf'),
+        modalTopPdfConfig: document.getElementById('modalTopPdfConfig'),
+        btnCloseTopPdf: document.getElementById('btnCloseTopPdf'),
+        btnCancelTopPdf: document.getElementById('btnCancelTopPdf'),
+        btnGenerateTopPdf: document.getElementById('btnGenerateTopPdf'),
+        inputTopCount: document.getElementById('inputTopCount'),
+        topPdfInfo: document.getElementById('topPdfInfo')
     };
 
     initDragAndDrop();
@@ -382,6 +389,40 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         elements.modalTargetPdfConfig.classList.add('hidden');
         exportTargetValuePdf(targetVal);
+    });
+
+    // IMPRIMIR TOP ITENS: imprime as N primeiras POSIÇÕES do relatório (na ordenação atual)
+    elements.btnExportTopPdf.addEventListener('click', () => {
+        elements.dropdownPdf.classList.add('hidden');
+        const total = state.filteredData.length;
+        if (!total) {
+            alert("Não há dados filtrados para gerar o relatório em PDF.");
+            return;
+        }
+        elements.inputTopCount.max = total;
+        if (!elements.inputTopCount.value) elements.inputTopCount.value = Math.min(20, total);
+        elements.topPdfInfo.textContent = `O relatório atual tem ${total.toLocaleString('pt-BR')} itens (posições 1 a ${total.toLocaleString('pt-BR')}).`;
+        elements.modalTopPdfConfig.classList.remove('hidden');
+        elements.inputTopCount.focus();
+        elements.inputTopCount.select();
+    });
+
+    elements.btnCloseTopPdf.addEventListener('click', () => elements.modalTopPdfConfig.classList.add('hidden'));
+    elements.btnCancelTopPdf.addEventListener('click', () => elements.modalTopPdfConfig.classList.add('hidden'));
+
+    elements.btnGenerateTopPdf.addEventListener('click', () => {
+        let n = parseInt(elements.inputTopCount.value, 10);
+        if (isNaN(n) || n < 1) {
+            alert("Informe até qual posição imprimir (número inteiro maior que zero).");
+            return;
+        }
+        n = Math.min(n, state.filteredData.length);
+        elements.modalTopPdfConfig.classList.add('hidden');
+        exportToPDF('top', n);
+    });
+
+    elements.inputTopCount.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') elements.btnGenerateTopPdf.click();
     });
 
     elements.btnToggleCols.addEventListener('click', (e) => {
@@ -1652,13 +1693,16 @@ function renderUI() {
 
 function renderDashboardTable(pageItems) {
     if (pageItems.length === 0) {
-        elements.tableBody.innerHTML = `<tr><td colspan="28" class="empty-state">Nenhum produto encontrado para os filtros selecionados.</td></tr>`;
+        elements.tableBody.innerHTML = `<tr><td colspan="29" class="empty-state">Nenhum produto encontrado para os filtros selecionados.</td></tr>`;
         syncColumnVisibility();
         updateSelectionUI();
         return;
     }
 
-    elements.tableBody.innerHTML = pageItems.map(item => {
+    // A numeração é a POSIÇÃO no relatório (muda de item quando a ordenação muda; a sequência 1..N permanece)
+    const posBase = (state.currentPage - 1) * state.pageSize;
+
+    elements.tableBody.innerHTML = pageItems.map((item, idx) => {
         let txtAutonomia = 'S/ Venda';
         if (item.venda30Dias > 0) {
             txtAutonomia = `${Math.round(item.autonomiaDias)}d`;
@@ -1687,6 +1731,7 @@ function renderDashboardTable(pageItems) {
 
         return `
         <tr class="${isSelected ? 'row-selected' : ''}">
+            <td class="col-pos">${posBase + idx + 1}</td>
             <td class="col-select">
                 <input type="checkbox" class="row-select-chk" data-id="${item.id}" ${isSelected ? 'checked' : ''} title="Selecionar para o PDF de Itens Selecionados">
             </td>
@@ -2793,11 +2838,12 @@ function exportExecutivePdf() {
     doc.save(`Dashboard_Executivo_Vendas_${dateFormatted.replace(/\//g, '-')}.pdf`);
 }
 
-function exportToPDF(type) {
+function exportToPDF(type, topN) {
     elements.dropdownPdf.classList.add('hidden');
 
     const isSelected = type === 'selected';
-    const sourceData = isSelected ? getSelectedItems() : state.filteredData;
+    const isTop = type === 'top';
+    const sourceData = isSelected ? getSelectedItems() : (isTop ? state.filteredData.slice(0, topN) : state.filteredData);
 
     if (!sourceData.length) {
         alert(isSelected
@@ -2809,9 +2855,9 @@ function exportToPDF(type) {
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
 
-    // 'selected' usa exatamente o mesmo formato (colunas/estilo) do Relatório Simples
+    // 'selected' e 'top' usam o mesmo formato (colunas/estilo) do Relatório Simples; o 'top' ganha a coluna de posição (#)
     const isDetailed = type === 'detailed';
-    const titleText = isSelected ? "ITENS SELECIONADOS" : (isDetailed ? "RELATÓRIO DETALHADO DE ESTOQUE" : "RELATÓRIO SIMPLES DE ESTOQUE");
+    const titleText = isSelected ? "ITENS SELECIONADOS" : isTop ? `TOP ${sourceData.length} ITENS` : (isDetailed ? "RELATÓRIO DETALHADO DE ESTOQUE" : "RELATÓRIO SIMPLES DE ESTOQUE");
 
     let headers = isDetailed ? [
         ["Produto + Código", "Emb.", "Estoque", "Val. Estoque", "Ped. Pend.", "Rent. (%)", "Dt Entrada", "Qtd Ent.", "Idade", "Dias s/ Vnd", "Status", "Comprador"]
@@ -2859,8 +2905,8 @@ function exportToPDF(type) {
     const generationStamp = `Gerado em: ${dateFormatted} às ${timeFormatted}`;
 
     doc.autoTable({
-        head: headers,
-        body: bodyData,
+        head: isTop ? [['#'].concat(headers[0])] : headers,
+        body: isTop ? bodyData.map((row, i) => [String(i + 1)].concat(row)) : bodyData,
         startY: 18,
         margin: { top: 18, bottom: 20, left: 6, right: 6 },
         theme: 'grid',
@@ -2893,6 +2939,14 @@ function exportToPDF(type) {
             9: { cellWidth: 13, halign: 'center' },
             10: { cellWidth: 11, halign: 'center' },
             11: { cellWidth: 22 }
+        } : isTop ? {
+            0: { cellWidth: 8, halign: 'center', fontStyle: 'bold' },
+            1: { cellWidth: 60 },
+            2: { cellWidth: 18, halign: 'center' },
+            3: { cellWidth: 32, halign: 'right' },
+            4: { cellWidth: 25, halign: 'center' },
+            5: { cellWidth: 25, halign: 'right' },
+            6: { cellWidth: 30, halign: 'center' }
         } : {
             0: { cellWidth: 68 },
             1: { cellWidth: 18, halign: 'center' },
@@ -2944,6 +2998,7 @@ function exportToPDF(type) {
 
     const dateTag = dateFormatted.replace(/\//g, '-');
     const fileName = isSelected ? `Itens_Selecionados_${dateTag}.pdf`
+        : isTop ? `Top_${sourceData.length}_Itens_${dateTag}.pdf`
         : (isDetailed ? `Relatorio_Detalhado_Estoque_${dateTag}.pdf` : `Relatorio_Simples_Estoque_${dateTag}.pdf`);
     doc.save(fileName);
 }

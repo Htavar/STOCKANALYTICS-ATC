@@ -177,3 +177,33 @@
     cursor: pointer;
     margin-bottom: 0.3rem;
 }
+
+/* ---- Nome da ação ---- */
+.ofertas-acao-row { margin: 0.45rem 0 0.2rem 0; }
+
+.ofertas-acao-row label {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    font-size: 0.65rem;
+    color: var(--text-muted);
+    font-weight: 600;
+}
+
+.ofertas-acao-row input {
+    background-color: var(--bg-primary);
+    border: 1px solid var(--border-color);
+    color: var(--text-main);
+    padding: 0.3rem 0.4rem;
+    border-radius: 3px;
+    font-size: 0.72rem;
+}
+
+.ofertas-acao-row input:focus { outline: 1px solid var(--accent-blue); }
+
+#tableOfertas .badge-acao {
+    background-color: rgba(139, 92, 246, 0.15);
+    color: #c4b5fd;
+    border: 1px solid rgba(139, 92, 246, 0.35);
+    white-space: nowrap;
+}

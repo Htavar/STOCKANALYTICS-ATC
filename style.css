@@ -975,3 +975,22 @@ body.hide-values .mini-ranking-table td:nth-child(5) {
 #inventoryTable tr.row-selected td {
     background-color: rgba(56, 189, 248, 0.12);
 }
+
+/* ==========================================================================
+   CONTAGEM (POSIÇÃO NO RELATÓRIO) - DASHBOARD
+   ========================================================================== */
+.data-table th.col-pos,
+.data-table td.col-pos {
+    width: 34px;
+    min-width: 34px;
+    max-width: 34px;
+    padding-left: 0.25rem;
+    padding-right: 0.25rem;
+    text-align: center;
+    color: var(--text-muted);
+    font-weight: 700;
+    font-size: 0.62rem;
+    cursor: default;
+}
+
+.data-table th.col-pos:hover { color: var(--text-muted); }

@@ -163,6 +163,7 @@
                     <button id="btnExportSimplePdf">📄 Relatório Simples</button>
                     <button id="btnExportDetailedPdf">📋 Relatório Detalhado</button>
                     <button id="btnExportTargetPdf">🎯 Valor Acumulado</button>
+                    <button id="btnExportTopPdf">🔝 Imprimir Top Itens</button>
                     <button id="btnExportSelectedPdf">✅ Itens Selecionados (0)</button>
                     <button id="btnClearSelection">✖ Limpar Seleção</button>
                 </div>
@@ -230,6 +231,7 @@
                     <table class="data-table" id="inventoryTable">
                         <thead>
                             <tr>
+                                <th class="col-pos" title="Posição no relatório (a numeração acompanha a ordenação)">#</th>
                                 <th class="col-select" title="Marcar/desmarcar todos desta página"><input type="checkbox" id="chkSelectAllPage"></th>
                                 <th data-sort-key="descricao">Produto (MERC)</th>
                                 <th data-sort-key="embalagem" class="col-embalagem">Emb.</th>
@@ -263,7 +265,7 @@
                         </thead>
                         <tbody id="tableBody">
                             <tr>
-                                <td colspan="28" class="empty-state">
+                                <td colspan="29" class="empty-state">
                                     Selecione a pasta contendo os arquivos para carregar os dados.
                                 </td>
                             </tr>
@@ -1254,6 +1256,7 @@
 							<option value="nao_encontrado">Códigos não encontrados</option>
 						</select>
 						<select id="filterOfertasComprador"><option value="">Comprador (Todos)</option></select>
+						<select id="filterOfertasAcao"><option value="">Ação (Todas)</option></select>
 					</div>
 
 					<div class="toggle-group">
@@ -1305,6 +1308,7 @@
                                 <th data-sort-key="diasSemVenda" class="col-dias">Dias s/ Venda</th>
                                 <th data-sort-key="autonomiaDias" class="col-autonomia">Autonomia (Dias)</th>
                                 <th data-sort-key="rentabilidade" class="col-rentabilidade">Rentabilidade</th>
+                                <th data-sort-key="acao" class="col-acao" title="Nome da ação (oferta) informado ao colar os dados">Ação</th>
                                 <th data-sort-key="fornecedorFormatted" class="col-fornecedor">Fornecedor</th>
                                 <th data-sort-key="pedidosPendentes" class="col-pedidos">Ped. Pendentes</th>
                                 <th data-sort-key="sta" class="col-sta">Status (STA)</th>
@@ -1325,7 +1329,7 @@
 						</thead>
 						<tbody id="ofertasTableBody">
 							<tr>
-								<td colspan="30" class="empty-state">Clique em “📋 Colar Dados” para importar a lista de códigos e preços da oferta.</td>
+								<td colspan="31" class="empty-state">Clique em “📋 Colar Dados” para importar a lista de códigos e preços da oferta.</td>
 							</tr>
 						</tbody>
 					</table>
@@ -1357,6 +1361,27 @@
                 <div class="modal-actions">
                     <button id="btnCancelFilterConfig" class="btn-secondary">Cancelar</button>
                     <button id="btnApplyFilterConfig" class="btn-primary">Aplicar Filtro</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL PDF IMPRIMIR TOP ITENS -->
+    <div id="modalTopPdfConfig" class="modal-overlay hidden">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h3>🔝 Imprimir Top Itens</h3>
+                <button id="btnCloseTopPdf" class="btn-close-modal">✖</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="inputTopCount">Imprimir até a posição (nº do item no relatório):</label>
+                    <input type="number" id="inputTopCount" placeholder="Ex: 33" min="1" step="1">
+                </div>
+                <div id="topPdfInfo" class="ofertas-summary"></div>
+                <div class="modal-actions">
+                    <button id="btnCancelTopPdf" class="btn-secondary">Cancelar</button>
+                    <button id="btnGenerateTopPdf" class="btn-primary">Gerar PDF</button>
                 </div>
             </div>
         </div>
@@ -1415,8 +1440,14 @@
                 <button id="btnCloseOfertasPaste" class="btn-close-modal">✖</button>
             </div>
             <div class="modal-body">
-                <p class="ofertas-hint">No Excel, copie as células da lista (pode incluir cabeçalho e outras colunas) e cole abaixo com Ctrl+V. O sistema identifica as colunas de Código e Preço; confira e ajuste se precisar.</p>
+                <p class="ofertas-hint">No Excel, copie as células da lista (pode incluir cabeçalho e outras colunas) e cole abaixo com Ctrl+V. O sistema identifica as colunas de Código e Preço; confira e ajuste se precisar. Cada colagem é <strong>acrescentada</strong> às ofertas já importadas.</p>
                 <textarea id="ofertasPasteArea" placeholder="Cole aqui os dados copiados do Excel..." spellcheck="false"></textarea>
+                <div class="ofertas-acao-row">
+                    <label>Nome da ação desta oferta
+                        <input type="text" id="ofertasAcaoNome" list="ofertasAcoesList" placeholder="Ex.: Semana do Arroz" maxlength="60" autocomplete="off">
+                    </label>
+                    <datalist id="ofertasAcoesList"></datalist>
+                </div>
 
                 <div id="ofertasMapSection" class="hidden">
                     <div class="ofertas-map-row">
