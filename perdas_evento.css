@@ -37,7 +37,7 @@
 
 #tablePerdasEvento tr.pe-l0 td { background-color: rgba(56, 189, 248, 0.10); font-weight: 700; }
 #tablePerdasEvento tr.pe-l1 td { background-color: rgba(56, 189, 248, 0.05); }
-#tablePerdasEvento tr.pe-l4 td { color: var(--text-muted); font-size: 0.62rem; }
+#tablePerdasEvento tr.pe-leaf td { color: var(--text-muted); font-size: 0.62rem; }
 #tablePerdasEvento tr.pe-others td { font-style: italic; color: var(--text-muted); }
 
 #tablePerdasEvento td.pe-barcell { min-width: 90px; }
@@ -52,7 +52,8 @@
 #tablePerdasEvento tr.pe-l1 .pe-bar span { background-color: #f97316; }
 #tablePerdasEvento tr.pe-l2 .pe-bar span { background-color: #f59e0b; }
 #tablePerdasEvento tr.pe-l3 .pe-bar span { background-color: #eab308; }
-#tablePerdasEvento tr.pe-l4 .pe-bar span { background-color: #94a3b8; }
+#tablePerdasEvento tr.pe-l4 .pe-bar span { background-color: #a3e635; }
+#tablePerdasEvento tr.pe-leaf .pe-bar span { background-color: #94a3b8; }
 
 .pe-info-bar {
     margin-top: 0.25rem;
