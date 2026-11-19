@@ -994,3 +994,10 @@ body.hide-values .mini-ranking-table td:nth-child(5) {
 }
 
 .data-table th.col-pos:hover { color: var(--text-muted); }
+
+/* ==========================================================================
+   BARRA DE ABAS: nunca esconder nem espremer botões (quebra de linha quando faltar espaço)
+   ========================================================================== */
+.app-header { flex-wrap: wrap; gap: 0.3rem 0.6rem; }
+.tab-navigation { flex: 0 1 auto; min-width: 0; flex-wrap: wrap; justify-content: center; }
+.tab-btn { white-space: nowrap; }

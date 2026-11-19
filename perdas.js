@@ -127,11 +127,9 @@ function initPerdasModule() {
 function toggleGlobalPaginationForTab(tabId) {
     const sharedPagination = document.getElementById('sharedPaginationBar');
     if (sharedPagination) {
-        if (['tab-perdas', 'tab-pedidos', 'tab-clientes', 'tab-charts'].includes(tabId)) {
-            sharedPagination.style.display = 'none';
-        } else {
-            sharedPagination.style.display = 'flex';
-        }
+        // A barra de paginação só existe nas abas com tabela paginada (Dashboard e Análise de Vendas)
+        const isMainFilterTab = ['tab-dashboard', 'tab-sales'].includes(tabId);
+        sharedPagination.style.display = isMainFilterTab ? 'flex' : 'none';
     }
 }
 
