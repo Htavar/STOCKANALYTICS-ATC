@@ -207,3 +207,76 @@
     border: 1px solid rgba(139, 92, 246, 0.35);
     white-space: nowrap;
 }
+
+/* ---- Rent. Oferta ---- */
+#tableOfertas td.col-rentOferta,
+#tableOfertas th.col-rentOferta { white-space: nowrap; }
+
+/* ---- Dashboard: linha clicável (abre o Preço Negociado) ---- */
+#inventoryTable tbody tr { cursor: pointer; }
+
+/* ---- Modal Preço Negociado ---- */
+.neg-modal-card { width: 400px; max-width: 94%; }
+
+.neg-prod { display: flex; flex-direction: column; gap: 0.1rem; margin-bottom: 0.5rem; }
+.neg-prod strong { font-size: 0.82rem; line-height: 1.25; }
+
+.neg-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.4rem 0.7rem;
+    padding: 0.45rem 0.5rem;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    background-color: var(--bg-primary);
+    margin-bottom: 0.55rem;
+}
+.neg-grid > div { display: flex; flex-direction: column; gap: 0.05rem; }
+.neg-grid strong { font-size: 0.78rem; }
+
+.neg-lbl { font-size: 0.58rem; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.02em; }
+
+.neg-input-row { display: flex; gap: 0.7rem; align-items: flex-end; }
+.neg-input-row label {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    font-size: 0.65rem;
+    color: var(--text-muted);
+    font-weight: 600;
+    flex: 1;
+}
+.neg-input-row input {
+    background-color: var(--bg-primary);
+    border: 1px solid var(--accent-blue);
+    color: var(--text-main);
+    padding: 0.4rem 0.5rem;
+    border-radius: 3px;
+    font-size: 0.95rem;
+    font-weight: 700;
+    width: 100%;
+}
+.neg-input-row input:focus { outline: 2px solid rgba(56, 189, 248, 0.45); }
+
+.neg-result { display: flex; flex-direction: column; gap: 0.05rem; flex: 1.2; min-width: 0; }
+.neg-result strong { font-size: 1.05rem; }
+
+.neg-toast {
+    position: fixed;
+    left: 50%;
+    bottom: 1.2rem;
+    transform: translateX(-50%) translateY(20px);
+    background-color: rgba(22, 163, 74, 0.96);
+    color: #fff;
+    padding: 0.55rem 0.9rem;
+    border-radius: 6px;
+    font-size: 0.72rem;
+    font-weight: 600;
+    max-width: 92%;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s, transform 0.2s;
+    z-index: 3000;
+}
+.neg-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }

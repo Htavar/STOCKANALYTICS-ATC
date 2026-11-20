@@ -63,6 +63,27 @@
         return s;
     }
 
+    // ---------------------------------------------------------------- rentabilidade
+    // Cabeçalho padrão (%) descontado da margem bruta. Na fórmula ele se anula no resultado
+    // final, mas é mantido para seguir exatamente a estrutura da fórmula do Excel/VBA.
+    const RENT_CABECALHO = 7;
+
+    // Rentabilidade (%) que o produto passa a ter se for vendido a precoN.
+    //   margem(p) = ((custo / p) * 100 - 100) * -1          (margem bruta % ao preço p)
+    //   outros    = (margem(preço atual) - cabeçalho) - rentAtual
+    //   rent nova = (margem(precoN) - cabeçalho) - outros
+    // custo e preço devem estar na MESMA unidade (a razão custo/preço não muda entre CX e UN).
+    // Obs.: a fórmula do VBA, como foi descrita, tem Preço e PreçoN em posições invertidas
+    // (a rentabilidade subiria ao baixar o preço). Aqui o preço negociado entra no 1º termo.
+    function calcRentabilidadeNegociada(custo, preco, precoN, rentAtual, cabecalho) {
+        if (!(custo > 0) || !(preco > 0) || !(precoN > 0)) return null;
+        const cab = cabecalho === undefined ? RENT_CABECALHO : cabecalho;
+        const margemAtual = ((custo / preco) * 100 - 100) * -1;
+        const margemNeg = ((custo / precoN) * 100 - 100) * -1;
+        return (margemNeg - cab) - ((margemAtual - cab) - (rentAtual || 0));
+    }
+    window.calcRentabilidadeNegociada = calcRentabilidadeNegociada;
+
     // Aceita: "12,90" | "12.90" | "1.234,56" | "R$ 12,90" | 12.9 (número)
     function parseOfertaPreco(raw) {
         if (raw === null || raw === undefined) return null;
@@ -86,6 +107,8 @@
         const n = parseFloat(s);
         return isFinite(n) && n > 0 ? n : null;
     }
+
+    window.ofertasParsePreco = parseOfertaPreco;
 
     // Aceita: "12345" | "012345" | "12345-6" | "12345 ARROZ" ; recusa textos sem número (cabeçalhos)
     function parseOfertaCodigo(raw) {
@@ -460,13 +483,14 @@
         const base = getBaseMap();
         ofertasState.rows = ofertasState.offers.map(o => {
             const item = base.get(o.id) || null;
-            let ref = null, refTipo = null, diff = null, divergente = false, semEstoque = false, cmp = null, isKg = false;
+            let ref = null, refTipo = null, diff = null, divergente = false, semEstoque = false, cmp = null, isKg = false, rentOferta = null;
             if (item) {
                 // Item "de KG" = vendido em KG (unidade de venda KG, ex.: "KG 1 X 1000 X 1KG").
                 // Embalagens como "FDO 1 X 6 5KG" só têm peso no nome: são comparadas pelo Preço Und.
                 isKg = /^\s*KGS?\b/i.test(String(item.embalagem || ''));
                 refTipo = isKg ? 'CX' : 'UN';
                 ref = isKg ? item.precoVenda : item.precoUnidade;
+                rentOferta = calcRentabilidadeNegociada(isKg ? item.custoMedio : item.custoUnidade, ref, o.preco, item.rentabilidade);
                 diff = o.preco - ref;
                 const refC = Math.round(ref * 100), ofC = Math.round(o.preco * 100);
                 divergente = refC !== ofC;
@@ -477,7 +501,7 @@
             const vendaDia = (item && vd.status === 'ok') ? (vd.map.get(o.id) || { cx: 0, un: 0, valor: 0 }) : null;
             return { oferta: o, item: item, ref: ref, refTipo: refTipo, diff: diff, vendaDia: vendaDia,
                      divergente: divergente, semEstoque: semEstoque, naoEncontrado: !item,
-                     cmp: cmp, isKg: isKg,
+                     cmp: cmp, isKg: isKg, rentOferta: rentOferta,
                      bloqueado: !!item && String(item.prFixo || '').trim().toUpperCase() === 'S' };
         });
     }
@@ -508,6 +532,7 @@
     function sortValue(row, key) {
         if (key === 'precoOferta') return row.oferta.preco;
         if (key === 'acao') return row.oferta.acao;
+        if (key === 'rentOferta') return row.rentOferta;
         if (key === 'vendaOntem') return row.vendaDia ? row.vendaDia.cx : null;
         if (!row.item) return null;
         if (key === 'dtUltEnt') {
@@ -579,6 +604,15 @@
             <span class="sub-text">${sign}${fmtTabela(Math.abs(r.diff))} vs ${tag}</span></td>`;
     }
 
+    function buildRentOfertaCell(r) {
+        if (r.naoEncontrado || r.rentOferta === null) return '<td class="col-rentOferta col-rentabilidade">-</td>';
+        const v = r.rentOferta;
+        const cls = v < 0 ? 'badge-danger' : (v <= 4.5 ? 'badge-warning' : 'badge-success');
+        const d = v - r.item.rentabilidade;
+        return `<td class="col-rentOferta col-rentabilidade"><span class="badge ${cls}">${v.toFixed(2)}%</span>
+            <span class="sub-text">${d >= 0 ? '▲ +' : '▼ -'}${Math.abs(d).toFixed(2)} pp vs atual</span></td>`;
+    }
+
     function buildPrFixoCell(r) {
         if (!r.item) return '<td class="col-precoFixo">-</td>';
         const v = String(r.item.prFixo || '').trim().toUpperCase();
@@ -609,6 +643,7 @@
                 <td class="col-precoCx">-</td>
                 <td class="col-precoUnd">-</td>
                 ${buildOfertaCell(r)}
+                ${buildRentOfertaCell(r)}
                 ${buildPrFixoCell(r)}
                 ${buildVendaCell(r)}
                 ${COLS_APOS_OFERTA.map(c => `<td class="${c}">${c === 'col-acao' ? esc(r.oferta.acao) : '-'}</td>`).join('')}
@@ -655,6 +690,7 @@
             <td class="col-precoCx${refCx}">${fmtTabela(item.precoVenda)}</td>
             <td class="col-precoUnd${refUn}">${fmtTabela(item.precoUnidade)}</td>
             ${buildOfertaCell(r)}
+            ${buildRentOfertaCell(r)}
             ${buildPrFixoCell(r)}
             ${buildVendaCell(r)}
             <td class="col-idade"><span class="${idadeBadgeClass}">${idadeInt} d</span></td>
@@ -763,17 +799,17 @@
 
         const tbody = $('ofertasTableBody');
         if (!hasOffers) {
-            tbody.innerHTML = `<tr><td colspan="31" class="empty-state">Clique em “📋 Colar Dados” para importar a lista de códigos e preços da oferta.</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="32" class="empty-state">Clique em “📋 Colar Dados” para importar a lista de códigos e preços da oferta.</td></tr>`;
             $('ofertasPageInfo').textContent = 'Nenhuma oferta importada';
             return;
         }
         if (!hasBase) {
-            tbody.innerHTML = `<tr><td colspan="31" class="empty-state">${ofertasState.offers.length} itens de oferta importados. Selecione a pasta com os arquivos de dados para cruzar com a base e conferir os preços.</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="32" class="empty-state">${ofertasState.offers.length} itens de oferta importados. Selecione a pasta com os arquivos de dados para cruzar com a base e conferir os preços.</td></tr>`;
             $('ofertasPageInfo').textContent = `${ofertasState.offers.length} itens aguardando a base de dados`;
             return;
         }
         if (!rows.length) {
-            tbody.innerHTML = `<tr><td colspan="31" class="empty-state">Nenhum item da oferta encontrado para os filtros selecionados.</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="32" class="empty-state">Nenhum item da oferta encontrado para os filtros selecionados.</td></tr>`;
         } else {
             tbody.innerHTML = rows.map(buildRowHtml).join('');
         }
@@ -783,6 +819,37 @@
         if (typeof syncColumnVisibility === 'function') syncColumnVisibility();
     }
     window.renderOfertasUI = renderOfertasUI;
+
+    // ------------------------------------------- integração com a Dashboard (Preço Negociado)
+    const ACAO_NEGOCIADO = 'Preço Negociado';
+
+    // Base de comparação do item: KG vendido em KG -> Preço Cx. ; demais -> Preço Und.
+    window.ofertasBaseDoItem = function (item) {
+        const isKg = /^\s*KGS?\b/i.test(String(item.embalagem || ''));
+        return isKg
+            ? { tipo: 'CX', preco: item.precoVenda, custo: item.custoMedio }
+            : { tipo: 'UN', preco: item.precoUnidade, custo: item.custoUnidade };
+    };
+
+    // Oferta já existente do produto na ação "Preço Negociado" (ou null)
+    window.ofertasGetOferta = function (itemId) {
+        const key = normTxt(ACAO_NEGOCIADO) + '\u0001' + itemId;
+        return ofertasState.offers.find(o => o.key === key) || null;
+    };
+
+    // Adiciona (ou atualiza) o produto na ação "Preço Negociado" com o preço informado
+    window.ofertasAdicionarNegociado = function (item, preco) {
+        const acaoKey = normTxt(ACAO_NEGOCIADO);
+        const existente = ofertasState.offers.find(o => normTxt(o.acao) === acaoKey);
+        const acao = existente ? existente.acao : ACAO_NEGOCIADO;
+        const key = acaoKey + '\u0001' + item.id;
+        const obj = { key: key, id: item.id, codigoDigitado: item.codigoCompleto, preco: preco, acao: acao };
+        const idx = ofertasState.offers.findIndex(o => o.key === key);
+        if (idx >= 0) ofertasState.offers[idx] = obj;
+        else ofertasState.offers.push(obj);
+        renderOfertasUI(true);
+        return { atualizado: idx >= 0 };
+    };
 
     // --------------------------------------------------------------------- PDF
     const TIPO_LABEL = {

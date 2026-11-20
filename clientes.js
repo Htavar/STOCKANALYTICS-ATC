@@ -8,7 +8,8 @@ const clientesState = {
     filteredClientes: [],
     hideValues: true, // Habilitado por padrão (desfocado ao iniciar)
     currentPage: 1,
-    pageSize: 100
+    pageSize: 100,     // quantos clientes aparecem por vez
+    visibleCount: 100  // quantos estão visíveis agora (cresce com "Mostrar mais")
 };
 
 // Termos para identificação automática do arquivo de clientes na pasta
@@ -58,9 +59,21 @@ function initClientesModule() {
     // Evento de busca em tempo real (CNPJ/CPF ou Razão Social)
     const searchClientes = document.getElementById('searchClientes');
     if (searchClientes) {
+        // Debounce: só filtra quando a pessoa para de digitar (evita travar a cada tecla)
+        let searchTimer = null;
         searchClientes.addEventListener('input', () => {
             clientesState.currentPage = 1;
-            applyClientesFilter();
+            clearTimeout(searchTimer);
+            searchTimer = setTimeout(applyClientesFilter, 250);
+        });
+    }
+
+    // Botão "Mostrar mais": exibe mais um bloco de clientes
+    const btnClientesMais = document.getElementById('btnClientesMais');
+    if (btnClientesMais) {
+        btnClientesMais.addEventListener('click', () => {
+            clientesState.visibleCount += clientesState.pageSize;
+            renderClientesUI();
         });
     }
 
@@ -228,25 +241,40 @@ function processClientesData(jsonArray) {
 }
 
 /**
+ * Índice de busca de cada cliente (calculado uma única vez)
+ */
+function indexCliente(c) {
+    if (c._idx === undefined) {
+        c._idx = {
+            cnpjLower: c.cnpjCpf.toLowerCase(),
+            digits: c.cnpjCpf.replace(/\D/g, ''),
+            razao: c.razaoSocial.toLowerCase()
+        };
+    }
+    return c._idx;
+}
+
+/**
  * Filtro avançado com suporte a busca por Razão Social e CNPJ
  */
 function applyClientesFilter() {
     const searchInput = document.getElementById('searchClientes');
     const searchTerm = searchInput ? searchInput.value.toLowerCase().trim() : '';
     const cleanSearchDigits = searchTerm.replace(/\D/g, '');
-    
+
     const searchTokens = searchTerm.split(/\s+/).filter(t => t.length > 0);
 
+    // Nova busca: volta a mostrar só o primeiro bloco
+    clientesState.visibleCount = clientesState.pageSize;
+
     if (!searchTerm) {
-        clientesState.filteredClientes = [...clientesState.rawClientes];
+        clientesState.filteredClientes = clientesState.rawClientes;
     } else {
         clientesState.filteredClientes = clientesState.rawClientes.filter(c => {
-            const cleanCnpjDigits = c.cnpjCpf.replace(/\D/g, '');
-            const matchDigits = cleanSearchDigits.length > 0 && cleanCnpjDigits.includes(cleanSearchDigits);
-            const matchCnpjDirect = c.cnpjCpf.toLowerCase().includes(searchTerm);
-            
-            const razaoLower = c.razaoSocial.toLowerCase();
-            const matchRazao = searchTokens.every(token => razaoLower.includes(token));
+            const ix = indexCliente(c);
+            const matchDigits = cleanSearchDigits.length > 0 && ix.digits.includes(cleanSearchDigits);
+            const matchCnpjDirect = ix.cnpjLower.includes(searchTerm);
+            const matchRazao = searchTokens.every(token => ix.razao.includes(token));
 
             return matchDigits || matchCnpjDirect || matchRazao;
         });
@@ -256,24 +284,36 @@ function applyClientesFilter() {
 }
 
 /**
- * Renderiza a Tabela e os KPIs da aba Clientes NF
+ * Renderiza a Tabela e os KPIs da aba Clientes NF (somente o bloco visível, não a lista inteira)
  */
 function renderClientesUI() {
     const tableBody = document.getElementById('clientesTableBody');
     const kpiTotal = document.getElementById('kpiTotalClientes');
     const kpiFiltrados = document.getElementById('kpiClientesFiltrados');
+    const info = document.getElementById('clientesInfo');
+    const btnMais = document.getElementById('btnClientesMais');
+
+    const total = clientesState.filteredClientes.length;
+    const shown = Math.min(clientesState.visibleCount, total);
 
     if (kpiTotal) kpiTotal.textContent = clientesState.rawClientes.length.toLocaleString('pt-BR');
-    if (kpiFiltrados) kpiFiltrados.textContent = clientesState.filteredClientes.length.toLocaleString('pt-BR');
+    if (kpiFiltrados) kpiFiltrados.textContent = total.toLocaleString('pt-BR');
+
+    if (info) info.textContent = total ? `Exibindo ${shown.toLocaleString('pt-BR')} de ${total.toLocaleString('pt-BR')} clientes` : '';
+    if (btnMais) {
+        const restante = total - shown;
+        btnMais.style.display = restante > 0 ? 'inline-flex' : 'none';
+        btnMais.textContent = `Mostrar mais ${Math.min(clientesState.pageSize, restante).toLocaleString('pt-BR')}`;
+    }
 
     if (!tableBody) return;
 
-    if (clientesState.filteredClientes.length === 0) {
+    if (total === 0) {
         tableBody.innerHTML = `<tr><td colspan="9" class="empty-state">Nenhum cliente encontrado.</td></tr>`;
         return;
     }
 
-    tableBody.innerHTML = clientesState.filteredClientes.map(c => `
+    tableBody.innerHTML = clientesState.filteredClientes.slice(0, shown).map(c => `
         <tr>
             <td>
                 <strong class="cnpj-click" onclick="copyCnpjToClipboard('${c.cnpjCpf}', this)" title="Clique para copiar o CNPJ/CPF" style="cursor: pointer; color: var(--accent-blue);">

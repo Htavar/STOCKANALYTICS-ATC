@@ -639,6 +639,10 @@
 						</tbody>
 					</table>
 				</section>
+				<div class="clientes-more-bar">
+					<span id="clientesInfo"></span>
+					<button id="btnClientesMais" class="btn-secondary" style="display: none;">Mostrar mais</button>
+				</div>
 			</div>
 
             <!-- ABA 5: PEDIDOS -->
@@ -1406,6 +1410,7 @@
                                 <th data-sort-key="precoVenda" class="col-precoCx">Preço Cx.</th>
                                 <th data-sort-key="precoUnidade" class="col-precoUnd">Preço Und.</th>
                                 <th data-sort-key="precoOferta" class="col-precoOferta">Preço Oferta</th>
+								<th data-sort-key="rentOferta" class="col-rentOferta col-rentabilidade" title="Rentabilidade com o preço da oferta (custo médio, preço atual, rentabilidade atual e cabeçalho de 7%)">Rent. Oferta</th>
 								<th data-sort-key="prFixo" class="col-precoFixo" title="Preço fixo (S/N)">Preço Fixo</th>
 								<th data-sort-key="vendaOntem" class="col-vendaOntem" title="Venda do dia anterior (arquivo de venda atual)">Venda Dia Ant.</th>
                                 <th data-sort-key="idade" class="col-idade">Idade</th>
@@ -1433,7 +1438,7 @@
 						</thead>
 						<tbody id="ofertasTableBody">
 							<tr>
-								<td colspan="31" class="empty-state">Clique em “📋 Colar Dados” para importar a lista de códigos e preços da oferta.</td>
+								<td colspan="32" class="empty-state">Clique em “📋 Colar Dados” para importar a lista de códigos e preços da oferta.</td>
 							</tr>
 						</tbody>
 					</table>
@@ -1465,6 +1470,43 @@
                 <div class="modal-actions">
                     <button id="btnCancelFilterConfig" class="btn-secondary">Cancelar</button>
                     <button id="btnApplyFilterConfig" class="btn-primary">Aplicar Filtro</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL PREÇO NEGOCIADO (clique no produto da Dashboard) -->
+    <div id="modalNegociado" class="modal-overlay hidden">
+        <div class="modal-card neg-modal-card">
+            <div class="modal-header">
+                <h3>💰 Preço Negociado</h3>
+                <button id="btnCloseNeg" class="btn-close-modal">✖</button>
+            </div>
+            <div class="modal-body">
+                <div class="neg-prod">
+                    <strong id="negDescricao"></strong>
+                    <span class="sub-text" id="negCodigo"></span>
+                </div>
+                <div class="neg-grid">
+                    <div><span class="neg-lbl">Estoque (CX | UN)</span><strong id="negEstoque"></strong></div>
+                    <div><span class="neg-lbl" id="negLblPreco">Preço atual</span><strong id="negPrecoAtual"></strong></div>
+                    <div><span class="neg-lbl">Custo médio</span><strong id="negCusto" class="col-rentabilidade"></strong></div>
+                    <div><span class="neg-lbl">Margem atual</span><strong id="negRentAtual" class="col-rentabilidade"></strong></div>
+                </div>
+                <div class="neg-input-row">
+                    <label>Preço negociado (R$)
+                        <input type="text" id="negPreco" inputmode="decimal" autocomplete="off" placeholder="0,00">
+                    </label>
+                    <div class="neg-result">
+                        <span class="neg-lbl">Nova rentabilidade</span>
+                        <strong id="negRentNova" class="col-rentabilidade">-</strong>
+                        <span class="sub-text" id="negRentDelta"></span>
+                    </div>
+                </div>
+                <div id="negAviso" class="ofertas-summary"></div>
+                <div class="modal-actions">
+                    <button id="btnNegCancel" class="btn-secondary">Cancelar</button>
+                    <button id="btnNegAdd" class="btn-primary">Enviar para Ofertas (Enter)</button>
                 </div>
             </div>
         </div>
@@ -1641,5 +1683,6 @@
 	<script src="grafico_perdas.js"></script>
 	<script src="perdas_evento.js"></script>
 	<script src="ofertas.js"></script>
+	<script src="negociado.js"></script>
 </body>
 </html>

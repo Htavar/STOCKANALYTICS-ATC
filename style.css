@@ -1001,3 +1001,15 @@ body.hide-values .mini-ranking-table td:nth-child(5) {
 .app-header { flex-wrap: wrap; gap: 0.3rem 0.6rem; }
 .tab-navigation { flex: 0 1 auto; min-width: 0; flex-wrap: wrap; justify-content: center; }
 .tab-btn { white-space: nowrap; }
+
+/* ==========================================================================
+   CLIENTES: carregamento parcial (evita travar com milhares de linhas)
+   ========================================================================== */
+.clientes-more-bar {
+    display: flex;
+    align-items: center;
+    gap: 0.7rem;
+    padding: 0.4rem 0.3rem;
+    font-size: 0.68rem;
+    color: var(--text-muted);
+}
