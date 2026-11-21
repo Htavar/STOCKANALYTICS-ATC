@@ -387,6 +387,22 @@
     margin-bottom: 8px;
 }
 
+#pedidoRenderExportContainer .export-brand {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 8px;
+}
+
+#pedidoRenderExportContainer .export-logo {
+    height: 36px;
+    width: auto;
+}
+
+#pedidoRenderExportContainer .export-brand .export-title {
+    margin-bottom: 0;
+}
+
 #pedidoRenderExportContainer .export-meta {
     display: flex;
     justify-content: space-between;

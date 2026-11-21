@@ -727,15 +727,54 @@
     }
 
     function updateSelectionUI(rowsShown) {
+        const total = ofertasState.selected.size;
+        const rows = rowsShown || getFilteredSortedRows();
+        const n = rows.filter(r => ofertasState.selected.has(r.oferta.key)).length;   // marcados entre os exibidos
+
         const btn = $('btnOfertasPdfSelecionados');
-        if (btn) btn.textContent = `✅ Itens Selecionados (${ofertasState.selected.size})`;
+        if (btn) btn.textContent = `✅ Itens Selecionados (${total})`;
+
         const chkAll = $('chkOfertasSelectAll');
         if (chkAll) {
-            const rows = rowsShown || getFilteredSortedRows();
-            const n = rows.filter(r => ofertasState.selected.has(r.oferta.key)).length;
             chkAll.checked = rows.length > 0 && n === rows.length;
             chkAll.indeterminate = n > 0 && n < rows.length;
         }
+
+        // Botão Excluir Selecionados
+        const del = $('btnOfertasDelSel');
+        if (del) {
+            del.textContent = `🗑️ Excluir Selecionados (${total})`;
+            del.disabled = total === 0;
+        }
+
+        // Cartão de contagem em tempo real
+        const kpi = $('kpiOfertasSelecionados');
+        if (kpi) {
+            kpi.textContent = total.toLocaleString('pt-BR');
+            const sub = $('kpiOfertasSelecionadosSub');
+            if (sub) {
+                sub.textContent = total === 0 ? 'Marque as caixinhas da tabela'
+                    : (n === total ? `${n.toLocaleString('pt-BR')} entre os exibidos`
+                        : `${n.toLocaleString('pt-BR')} exibidos · ${(total - n).toLocaleString('pt-BR')} ${total - n === 1 ? 'oculto' : 'ocultos'} por filtro`);
+            }
+            const card = $('cardOfertasSel');
+            if (card) card.classList.toggle('selection-active', total > 0);
+        }
+    }
+
+    // Exclui da lista de ofertas os itens marcados nas caixinhas
+    function deleteSelected() {
+        const total = ofertasState.selected.size;
+        if (!total) return;
+        const exibidos = getFilteredSortedRows().filter(r => ofertasState.selected.has(r.oferta.key)).length;
+        let msg = `Excluir ${total} item(ns) selecionado(s) da lista de ofertas?`;
+        const ocultos = total - exibidos;
+        if (ocultos > 0) msg += `\n\nAtenção: ${ocultos} ${ocultos === 1 ? 'deles está oculto' : 'deles estão ocultos'} pelos filtros atuais.`;
+        if (!confirm(msg)) return;
+
+        ofertasState.offers = ofertasState.offers.filter(o => !ofertasState.selected.has(o.key));
+        ofertasState.selected.clear();
+        renderOfertasUI(true);
     }
 
     function updateKpis(rows) {
@@ -954,7 +993,7 @@
                 doc.setFontSize(9);
                 doc.setFont('helvetica', 'bold');
                 doc.setTextColor(11, 17, 32);
-                doc.text(isSel ? 'StockAnalytics - RELATÓRIO DE OFERTAS - ITENS SELECIONADOS' : 'StockAnalytics - RELATÓRIO DE OFERTAS', 6, 9);
+                doc.text(isSel ? 'Management Overview - RELATÓRIO DE OFERTAS - ITENS SELECIONADOS' : 'Management Overview - RELATÓRIO DE OFERTAS', 6, 9);
 
                 doc.setFontSize(6.5);
                 doc.setFont('helvetica', 'normal');
@@ -1071,9 +1110,66 @@
         const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
         const pageW = doc.internal.pageSize.getWidth();
         const pageH = doc.internal.pageSize.getHeight();
-        const M = 4;               // margem lateral mínima (mm)
-        const bannerH = 26;        // altura do cabeçalho em estilo de oferta
+
+        const M = 4;                                   // margem lateral mínima (mm)
+        const ORANGE = [249, 99, 15];                  // laranja do logo
+        const GREEN = [0, 160, 96];                    // verde do logo
+        const DARK = [15, 23, 42];
+        const MUTED = [100, 116, 139];
+        const H1 = 33;                                 // cabeçalho completo (1ª página)
+        const H2 = 13;                                 // cabeçalho compacto (demais páginas)
         const iniBR = fmtDataBR(iniIso), fimBR = fmtDataBR(fimIso);
+        const tagText = `OFERTAS VÁLIDAS ATÉ ${fimBR}`;
+        const stockNote = 'Ofertas válidas enquanto durarem os estoques.';
+        const logo = window.APP_LOGO;
+
+        const drawLogo = (h, x, y) => {
+            if (!logo) return 0;
+            const w = h * logo.w / logo.h;
+            doc.addImage(logo.data, 'PNG', x, y, w, h);
+            return w;
+        };
+
+        // Tag laranja (pílula) alinhada à direita
+        const drawTag = (text, rightX, y, h, size) => {
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(size);
+            const w = doc.getTextWidth(text) + h * 1.3;
+            doc.setFillColor(ORANGE[0], ORANGE[1], ORANGE[2]);
+            doc.roundedRect(rightX - w, y, w, h, h / 2, h / 2, 'F');
+            doc.setTextColor(255, 255, 255);
+            doc.text(text, rightX - w / 2, y + h / 2 + size * 0.127, { align: 'center' });
+        };
+
+        const drawBars = (g, o) => {
+            doc.setFillColor(GREEN[0], GREEN[1], GREEN[2]);
+            doc.rect(0, 0, pageW, g, 'F');
+            doc.setFillColor(ORANGE[0], ORANGE[1], ORANGE[2]);
+            doc.rect(0, g, pageW, o, 'F');
+        };
+
+        const headerFull = () => {
+            drawBars(2, 0.7);
+            drawLogo(14, M, 6.5);
+            drawTag(tagText, pageW - M, 6.5, 9.5, 14.5);
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(9);
+            doc.setTextColor(DARK[0], DARK[1], DARK[2]);
+            doc.text(`Período: ${iniBR} a ${fimBR}`, pageW - M, 21.6, { align: 'right' });
+            doc.setFont('helvetica', 'italic');
+            doc.setFontSize(8);
+            doc.setTextColor(MUTED[0], MUTED[1], MUTED[2]);
+            doc.text(stockNote, pageW - M, 26, { align: 'right' });
+            doc.setDrawColor(226, 232, 240);
+            doc.setLineWidth(0.2);
+            doc.line(M, 29.5, pageW - M, 29.5);
+        };
+
+        const headerCompact = () => {
+            drawBars(1.4, 0.5);
+            drawLogo(7, M, 3.6);
+            drawTag(tagText, pageW - M, 4.2, 6, 8.5);
+        };
 
         const bodyData = rows.map(r => [
             r.item.descricao,
@@ -1082,45 +1178,49 @@
         ]);
 
         doc.autoTable({
-            head: [['Produto', 'Embalagem', 'Preço']],
+            head: [['PRODUTO', 'EMBALAGEM', 'PREÇO']],
             body: bodyData,
-            startY: bannerH + 3.5,
-            margin: { top: bannerH + 3.5, bottom: 8, left: M, right: M },
+            startY: H1,
+            margin: { top: H2, bottom: 8, left: M, right: M },
             tableWidth: pageW - 2 * M,
-            theme: 'grid',
-            styles: { fontSize: 9.5, cellPadding: { top: 2.2, bottom: 2.2, left: 2.5, right: 2.5 }, valign: 'middle',
-                      overflow: 'linebreak', lineColor: [226, 232, 240], lineWidth: 0.2, textColor: [15, 23, 42] },
-            headStyles: { fillColor: [17, 24, 39], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 10, halign: 'center' },
-            alternateRowStyles: { fillColor: [254, 242, 242] },
+            theme: 'plain',
+            styles: { fontSize: 7.8, cellPadding: { top: 1.15, bottom: 1.15, left: 2, right: 2 }, valign: 'middle',
+                      overflow: 'linebreak', lineWidth: 0, textColor: DARK },
+            headStyles: { fillColor: GREEN, textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 7.2,
+                          cellPadding: { top: 1.6, bottom: 1.6, left: 2, right: 2 } },
+            alternateRowStyles: { fillColor: [244, 250, 246] },
             columnStyles: {
-                0: { cellWidth: pageW - 2 * M - 84, fontStyle: 'bold' },
-                1: { cellWidth: 40, halign: 'center', fontSize: 9 },
-                2: { cellWidth: 44, halign: 'right', fontStyle: 'bold', fontSize: 12, textColor: [185, 28, 28] }
+                0: { cellWidth: pageW - 2 * M - 82, fontStyle: 'bold' },
+                1: { cellWidth: 38, halign: 'center', fontSize: 7.2, textColor: MUTED },
+                2: { cellWidth: 44, halign: 'right', fontStyle: 'bold', fontSize: 9.5, textColor: [234, 88, 12] }
             },
-            didDrawPage: () => {
-                // Faixa de oferta de ponta a ponta
-                doc.setFillColor(220, 38, 38);
-                doc.rect(0, 0, pageW, bannerH, 'F');
-                doc.setFillColor(250, 204, 21);
-                doc.rect(0, bannerH, pageW, 1.6, 'F');
-
-                doc.setTextColor(255, 255, 255);
-                doc.setFont('helvetica', 'bold');
-                doc.setFontSize(21);
-                doc.text(`OFERTAS VÁLIDAS ATÉ ${fimBR}`, pageW / 2, 12.5, { align: 'center' });
-                doc.setFontSize(10);
-                doc.setFont('helvetica', 'normal');
-                doc.text(`Período: ${iniBR} a ${fimBR}`, pageW / 2, 20, { align: 'center' });
+            // Cabeçalho da tabela sempre branco sobre verde (os estilos de coluna não podem sobrescrever)
+            didParseCell: (d) => {
+                if (d.section !== 'head') return;
+                d.cell.styles.textColor = [255, 255, 255];
+                d.cell.styles.fontStyle = 'bold';
+                d.cell.styles.fontSize = 7.2;
+            },
+            // Filete fino sob cada linha (visual mais limpo que grade completa)
+            didDrawCell: (d) => {
+                if (d.section !== 'body') return;
+                doc.setDrawColor(226, 232, 240);
+                doc.setLineWidth(0.1);
+                doc.line(d.cell.x, d.cell.y + d.cell.height, d.cell.x + d.cell.width, d.cell.y + d.cell.height);
+            },
+            didDrawPage: (d) => {
+                if (d.pageNumber === 1) headerFull(); else headerCompact();
             }
         });
 
         const totalPages = doc.internal.getNumberOfPages();
         for (let i = 1; i <= totalPages; i++) {
             doc.setPage(i);
-            doc.setFontSize(7);
             doc.setFont('helvetica', 'normal');
-            doc.setTextColor(100, 116, 139);
-            doc.text(`Página ${i} de ${totalPages}`, pageW / 2, pageH - 3, { align: 'center' });
+            doc.setFontSize(6.5);
+            doc.setTextColor(MUTED[0], MUTED[1], MUTED[2]);
+            doc.text(stockNote, M, pageH - 3);
+            doc.text(`Página ${i} de ${totalPages}`, pageW - M, pageH - 3, { align: 'right' });
         }
 
         doc.save(`Ofertas_Clientes_ate_${fimBR.replace(/\//g, '-')}.pdf`);
@@ -1200,6 +1300,7 @@
 
         $('btnOfertasClearFilters').addEventListener('click', clearFilters);
         $('btnOfertasClearData').addEventListener('click', clearData);
+        $('btnOfertasDelSel').addEventListener('click', deleteSelected);
         $('toggleOfertasOnlyBloq').addEventListener('change', (e) => {
             ofertasState.onlyBloq = e.target.checked;
             renderOfertasUI(true);

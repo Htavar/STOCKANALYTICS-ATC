@@ -484,7 +484,7 @@
                 doc.setFont('helvetica', 'bold');
                 doc.setFontSize(9);
                 doc.setTextColor(11, 17, 32);
-                doc.text(`StockAnalytics - ${titulo}`, 6, 9);
+                doc.text(`Management Overview - ${titulo}`, 6, 9);
                 doc.setFont('helvetica', 'normal');
                 doc.setFontSize(6.3);
                 doc.setTextColor(100, 116, 139);

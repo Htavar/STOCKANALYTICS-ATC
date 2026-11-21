@@ -1013,3 +1013,24 @@ body.hide-values .mini-ranking-table td:nth-child(5) {
     font-size: 0.68rem;
     color: var(--text-muted);
 }
+
+/* ==========================================================================
+   MARCA: logo no cabeçalho e cartão de seleção
+   ========================================================================== */
+.brand { gap: 0.45rem; }
+.brand h1 { font-size: 0.84rem; }
+.brand .subtitle { font-size: 0.56rem; }
+.tab-navigation { gap: 0.1rem; }
+.brand-logo {
+    height: 26px;
+    width: auto;
+    display: block;
+    filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.55));
+}
+
+.bento-card.selection-card .card-value { color: var(--accent-blue); }
+.bento-card.selection-card { transition: border-color 0.15s, box-shadow 0.15s; }
+.bento-card.selection-card.selection-active {
+    border-color: var(--accent-blue);
+    box-shadow: 0 0 0 1px var(--accent-blue), 0 4px 14px rgba(56, 189, 248, 0.18);
+}

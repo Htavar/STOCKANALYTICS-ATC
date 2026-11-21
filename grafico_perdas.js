@@ -633,7 +633,7 @@ function exportPerdasExecutivePdf() {
     doc.setFillColor(11, 17, 32);
     doc.rect(0, 0, 297, 210, 'F');
     doc.setFontSize(14); doc.setFont('helvetica', 'bold'); doc.setTextColor(248, 250, 252);
-    doc.text("StockAnalytics - DASHBOARD EXECUTIVO DE PERDAS", 10, 12);
+    doc.text("Management Overview - DASHBOARD EXECUTIVO DE PERDAS", 10, 12);
 
     const canvasList = ['chartPerdaEventos', 'chartPerdaOperacoes', 'chartPerdaCompradores', 'chartPerdaSetores', 'chartPerdaPareto', 'chartPerdaGrupos', 'chartPerdaSubgrupos', 'chartPerdaClasses', 'chartPerdaMaioresAumentos'];
     let pageCount = 0;

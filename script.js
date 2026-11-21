@@ -1803,6 +1803,22 @@ function updateSelectionUI() {
     if (elements.btnExportSelectedPdf) {
         elements.btnExportSelectedPdf.textContent = `✅ Itens Selecionados (${state.selectedIds.size})`;
     }
+
+    // Cartão "Itens Selecionados": contagem em tempo real das caixinhas marcadas
+    const kpiSel = document.getElementById('kpiSelecionados');
+    if (kpiSel) {
+        const total = state.selectedIds.size;
+        const visiveis = total ? state.filteredData.reduce((n, i) => n + (state.selectedIds.has(i.id) ? 1 : 0), 0) : 0;
+        kpiSel.textContent = total.toLocaleString('pt-BR');
+        const sub = document.getElementById('kpiSelecionadosSub');
+        if (sub) {
+            sub.textContent = total === 0 ? 'Marque as caixinhas da tabela'
+                : (visiveis === total ? `${visiveis.toLocaleString('pt-BR')} no relatório atual`
+                    : `${visiveis.toLocaleString('pt-BR')} no relatório · ${(total - visiveis).toLocaleString('pt-BR')} ${total - visiveis === 1 ? 'oculto' : 'ocultos'} por filtro`);
+        }
+        const card = document.getElementById('cardSelecionados');
+        if (card) card.classList.toggle('selection-active', total > 0);
+    }
     const chkAll = elements.chkSelectAllPage;
     if (chkAll) {
         const pageItems = getCurrentPageItems();
@@ -2763,7 +2779,7 @@ function exportExecutivePdf() {
         doc.setFontSize(14);
         doc.setFont('helvetica', 'bold');
         doc.setTextColor(248, 250, 252);
-        doc.text("StockAnalytics - DASHBOARD EXECUTIVO DE VENDAS", 10, 12);
+        doc.text("Management Overview - DASHBOARD EXECUTIVO DE VENDAS", 10, 12);
 
         doc.setFontSize(8);
         doc.setFont('helvetica', 'normal');
@@ -2784,7 +2800,7 @@ function exportExecutivePdf() {
     function drawPageFooter() {
         doc.setFontSize(7);
         doc.setTextColor(148, 163, 184);
-        doc.text("StockAnalytics ERP Intelligence - Documento Gerencial Interno", 10, 204);
+        doc.text("Management Overview - Documento Gerencial Interno", 10, 204);
     }
 
     drawPageHeader();
@@ -2959,7 +2975,7 @@ function exportToPDF(type, topN) {
             doc.setFontSize(9);
             doc.setFont("helvetica", "bold");
             doc.setTextColor(11, 17, 32);
-            doc.text("StockAnalytics - " + titleText, 6, 9);
+            doc.text("Management Overview - " + titleText, 6, 9);
 
             doc.setFontSize(6.5);
             doc.setFont("helvetica", "normal");
@@ -3083,7 +3099,7 @@ function exportTargetValuePdf(targetValue) {
             doc.setFontSize(8.5);
             doc.setFont("helvetica", "bold");
             doc.setTextColor(11, 17, 32);
-            doc.text("StockAnalytics - " + titleText, 6, 9);
+            doc.text("Management Overview - " + titleText, 6, 9);
 
             doc.setFontSize(6.5);
             doc.setFont("helvetica", "normal");

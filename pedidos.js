@@ -802,7 +802,7 @@ async function exportarPedidoParaImagem() {
 
         renderContainer.innerHTML = `
             <div class="export-header">
-                <div class="export-title">📦 StockAnalytics - Espelho de Pedido</div>
+                <div class="export-brand">${window.APP_LOGO ? `<img class="export-logo" src="${window.APP_LOGO.data}" alt="Atacadão">` : ''}<div class="export-title">Espelho do Pedido</div></div>
                 <div class="export-meta">
                     <div>👤 <strong>CLIENTE:</strong> ${clienteNome}</div>
                     <div>📦 <strong>ITENS:</strong> ${totalItens}</div>
@@ -961,6 +961,9 @@ function imprimirPedido() {
                     -webkit-print-color-adjust: exact;
                     print-color-adjust: exact;
                 }
+                .export-brand { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }
+                .export-logo { height: 34px; width: auto; }
+                .export-brand .export-title { margin-bottom: 0; }
                 .export-title {
                     font-size: 16pt;
                     font-weight: 800;
@@ -1007,7 +1010,7 @@ function imprimirPedido() {
         </head>
         <body>
             <div class="export-header">
-                <div class="export-title">📦 StockAnalytics - Espelho de Pedido</div>
+                <div class="export-brand">${window.APP_LOGO ? `<img class="export-logo" src="${window.APP_LOGO.data}" alt="Atacadão">` : ''}<div class="export-title">Espelho do Pedido</div></div>
                 <div class="export-meta">
                     <div>👤 <strong>CLIENTE:</strong> ${clienteNome}</div>
                     <div>📦 <strong>ITENS:</strong> ${totalItens}</div>
@@ -1112,10 +1115,18 @@ async function exportarTodosPedidosPdf() {
             doc.setFillColor(11, 17, 32);
             doc.roundedRect(8, 8, 194, 22, 2, 2, 'F');
 
+            // Logo + título (o nome do sistema não aparece no espelho do pedido)
+            let tituloX = 12;
+            if (window.APP_LOGO) {
+                const logoH = 9;
+                const logoW = logoH * window.APP_LOGO.w / window.APP_LOGO.h;
+                doc.addImage(window.APP_LOGO.data, 'PNG', 12, 10.2, logoW, logoH);
+                tituloX = 12 + logoW + 4;
+            }
             doc.setFontSize(12);
             doc.setFont('helvetica', 'bold');
             doc.setTextColor(56, 189, 248);
-            doc.text("StockAnalytics - Espelho de Pedido", 12, 15);
+            doc.text("Espelho do Pedido", tituloX, 16.2);
 
             doc.setFontSize(8.5);
             doc.setFont('helvetica', 'normal');
