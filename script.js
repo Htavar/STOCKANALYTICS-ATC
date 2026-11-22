@@ -870,6 +870,9 @@ function handleClearFilters() {
     state.sort.direction = 'asc';
     updateHeaderSortIcons();
 
+    // O botão Limpar também desmarca todas as caixas de seleção
+    state.selectedIds.clear();
+
     state.currentPage = 1;
     applyFilters();
 }

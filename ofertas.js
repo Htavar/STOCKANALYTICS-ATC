@@ -900,8 +900,11 @@
         'nao_encontrado': 'Códigos não encontrados'
     };
 
+    // Modos: 'filtrado' (Conferência de Preços), 'selecionados' (só os marcados, com preços)
+    //        e 'produtos' (Conferência de Produtos: as mesmas informações, SEM as colunas de preço)
     function exportOfertasPDF(mode) {
         const isSel = mode === 'selecionados';
+        const semPrecos = mode === 'produtos';
         const rows = isSel ? getSelectedRows() : getFilteredSortedRows();
         if (!rows.length) {
             alert(isSel
@@ -917,28 +920,38 @@
         const { jsPDF } = window.jspdf;
         const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
 
-        const headers = [['Produto + Código', 'Emb.', 'Estoque', 'Dt Entrada', 'Qtd Entrada', 'Dias s/ Vendas', 'Preço Atual', 'Preço Oferta']];
+        const estoqueTxt = (it) => {
+            let t = `${it.estoqEmb1.toLocaleString('pt-BR')}CX`;
+            if (it.estoqEmb9 > 0) t += ` + ${it.estoqEmb9.toLocaleString('pt-BR')}UN`;
+            return t;
+        };
 
-        const multiAcao = listaAcoes().length > 1;
-        const bodyData = rows.map(r => {
-            const it = r.item;
-            const linhaAcao = multiAcao ? `\nAção: ${r.oferta.acao}` : '';
-            if (!it) {
-                return [`Código não encontrado na base\n(Cód: ${r.oferta.codigoDigitado})${linhaAcao}`, '-', '-', '-', '-', '-', '-', fmtPdf(r.oferta.preco)];
-            }
-            let estoqStr = `${it.estoqEmb1.toLocaleString('pt-BR')}CX`;
-            if (it.estoqEmb9 > 0) estoqStr += ` + ${it.estoqEmb9.toLocaleString('pt-BR')}UN`;
-            return [
-                `${it.descricao}\n(Cód: ${it.codigoCompleto})${linhaAcao}`,
-                it.embalagem || '-',
-                estoqStr,
-                it.dtUltEnt || '-',
-                it.qtdUltEnt.toLocaleString('pt-BR'),
-                `${it.diasSemVenda} dias`,
-                `${fmtPdf(r.ref)}\n(${r.refTipo})`,
-                fmtPdf(r.oferta.preco)
-            ];
+        // Colunas (cada uma com cabeçalho, largura, alinhamento e como obter o valor da linha).
+        // A soma das larguras é sempre 198 mm (A4 retrato com margens de 6 mm).
+        const cols = [
+            { key: 'produto', head: 'Produto + Código', w: semPrecos ? 58 : 52,
+              get: r => r.item ? `${r.item.descricao}\n(Cód: ${r.item.codigoCompleto})` : `Código não encontrado na base\n(Cód: ${r.oferta.codigoDigitado})` },
+            { key: 'emb', head: 'Emb.', w: semPrecos ? 28 : 13, align: 'center', get: r => r.item ? (r.item.embalagem || '-') : '-' },
+            { key: 'estoque', head: 'Estoque', w: semPrecos ? 26 : 24, align: 'right', get: r => r.item ? estoqueTxt(r.item) : '-' },
+            { key: 'dtent', head: 'Dt Entrada', w: semPrecos ? 20 : 16, align: 'center', get: r => r.item ? (r.item.dtUltEnt || '-') : '-' },
+            { key: 'qtdent', head: 'Qtd Entrada', w: semPrecos ? 20 : 15, align: 'right', get: r => r.item ? r.item.qtdUltEnt.toLocaleString('pt-BR') : '-' },
+            { key: 'dias', head: 'Dias s/ Vendas', w: semPrecos ? 18 : 14, align: 'center', get: r => r.item ? `${r.item.diasSemVenda} dias` : '-' },
+            { key: 'acao', head: 'Ação', w: semPrecos ? 28 : 24, align: 'left', get: r => r.oferta.acao }
+        ];
+        if (!semPrecos) {
+            cols.push({ key: 'atual', head: 'Preço Atual', w: 20, align: 'right', get: r => r.item ? `${fmtPdf(r.ref)}\n(${r.refTipo})` : '-' });
+            cols.push({ key: 'oferta', head: 'Preço Oferta', w: 20, align: 'right', bold: true, get: r => fmtPdf(r.oferta.preco) });
+        }
+
+        const headers = [cols.map(c => c.head)];
+        const bodyData = rows.map(r => cols.map(c => c.get(r)));
+        const columnStyles = {};
+        cols.forEach((c, i) => {
+            columnStyles[i] = { cellWidth: c.w };
+            if (c.align) columnStyles[i].halign = c.align;
+            if (c.bold) columnStyles[i].fontStyle = 'bold';
         });
+        const idxOferta = cols.findIndex(c => c.key === 'oferta');
 
         const now = new Date();
         const dateFormatted = now.toLocaleDateString('pt-BR');
@@ -956,6 +969,9 @@
             if (ofertasState.search.trim()) filtroTxt += `  |  Busca: ${ofertasState.search.trim()}`;
         }
 
+        const titulo = semPrecos ? 'CONFERÊNCIA DE PRODUTOS (OFERTAS)'
+            : (isSel ? 'RELATÓRIO DE OFERTAS - ITENS SELECIONADOS' : 'RELATÓRIO DE OFERTAS');
+
         doc.autoTable({
             head: headers,
             body: bodyData,
@@ -964,22 +980,13 @@
             theme: 'grid',
             styles: { fontSize: 6, cellPadding: 0.8, valign: 'middle', overflow: 'linebreak', lineColor: [203, 213, 225], lineWidth: 0.15 },
             headStyles: { fillColor: [15, 23, 42], textColor: [255, 255, 255], fontStyle: 'bold', halign: 'center', fontSize: 6.5, cellPadding: 1 },
-            columnStyles: {
-                0: { cellWidth: 62 },
-                1: { cellWidth: 14, halign: 'center' },
-                2: { cellWidth: 26, halign: 'right' },
-                3: { cellWidth: 18, halign: 'center' },
-                4: { cellWidth: 18, halign: 'right' },
-                5: { cellWidth: 16, halign: 'center' },
-                6: { cellWidth: 22, halign: 'right' },
-                7: { cellWidth: 22, halign: 'right', fontStyle: 'bold' }
-            },
+            columnStyles: columnStyles,
             // Preço de oferta: verde = igual ao praticado | vermelho = divergente | laranja = sem comparação
             didParseCell: (data) => {
                 if (data.section !== 'body') return;
                 const r = rows[data.row.index];
                 if (!r) return;
-                if (data.column.index === 7) {
+                if (idxOferta >= 0 && data.column.index === idxOferta) {
                     if (r.naoEncontrado) data.cell.styles.textColor = [180, 83, 9];
                     else if (r.divergente) data.cell.styles.textColor = [185, 28, 28];
                     else data.cell.styles.textColor = [21, 128, 61];
@@ -993,7 +1000,7 @@
                 doc.setFontSize(9);
                 doc.setFont('helvetica', 'bold');
                 doc.setTextColor(11, 17, 32);
-                doc.text(isSel ? 'Management Overview - RELATÓRIO DE OFERTAS - ITENS SELECIONADOS' : 'Management Overview - RELATÓRIO DE OFERTAS', 6, 9);
+                doc.text(`Management Overview - ${titulo}`, 6, 9);
 
                 doc.setFontSize(6.5);
                 doc.setFont('helvetica', 'normal');
@@ -1025,7 +1032,8 @@
             doc.text(`Página ${i} de ${totalPages}`, doc.internal.pageSize.width - 25, doc.internal.pageSize.height - 4);
         }
 
-        doc.save(`Relatorio_Ofertas${isSel ? '_Selecionados' : ''}_${dateFormatted.replace(/\//g, '-')}.pdf`);
+        const sufixo = semPrecos ? 'Conferencia_Produtos' : `Ofertas${isSel ? '_Selecionados' : ''}`;
+        doc.save(`Relatorio_${sufixo}_${dateFormatted.replace(/\//g, '-')}.pdf`);
     }
 
     // ------------------------------------------------------- PDF PARA CLIENTES
@@ -1116,29 +1124,20 @@
         const GREEN = [0, 160, 96];                    // verde do logo
         const DARK = [15, 23, 42];
         const MUTED = [100, 116, 139];
-        const H1 = 33;                                 // cabeçalho completo (1ª página)
+        const H1 = 31;                                 // cabeçalho completo (1ª página)
         const H2 = 13;                                 // cabeçalho compacto (demais páginas)
         const iniBR = fmtDataBR(iniIso), fimBR = fmtDataBR(fimIso);
         const tagText = `OFERTAS VÁLIDAS ATÉ ${fimBR}`;
         const stockNote = 'Ofertas válidas enquanto durarem os estoques.';
-        const logo = window.APP_LOGO;
-
-        const drawLogo = (h, x, y) => {
-            if (!logo) return 0;
-            const w = h * logo.w / logo.h;
-            doc.addImage(logo.data, 'PNG', x, y, w, h);
-            return w;
-        };
-
-        // Tag laranja (pílula) alinhada à direita
-        const drawTag = (text, rightX, y, h, size) => {
+        // Tag laranja (pílula) centralizada
+        const drawTag = (text, centerX, y, h, size) => {
             doc.setFont('helvetica', 'bold');
             doc.setFontSize(size);
             const w = doc.getTextWidth(text) + h * 1.3;
             doc.setFillColor(ORANGE[0], ORANGE[1], ORANGE[2]);
-            doc.roundedRect(rightX - w, y, w, h, h / 2, h / 2, 'F');
+            doc.roundedRect(centerX - w / 2, y, w, h, h / 2, h / 2, 'F');
             doc.setTextColor(255, 255, 255);
-            doc.text(text, rightX - w / 2, y + h / 2 + size * 0.127, { align: 'center' });
+            doc.text(text, centerX, y + h / 2 + size * 0.127, { align: 'center' });
         };
 
         const drawBars = (g, o) => {
@@ -1150,25 +1149,23 @@
 
         const headerFull = () => {
             drawBars(2, 0.7);
-            drawLogo(14, M, 6.5);
-            drawTag(tagText, pageW - M, 6.5, 9.5, 14.5);
+            drawTag(tagText, pageW / 2, 6, 9.5, 14.5);
             doc.setFont('helvetica', 'bold');
             doc.setFontSize(9);
             doc.setTextColor(DARK[0], DARK[1], DARK[2]);
-            doc.text(`Período: ${iniBR} a ${fimBR}`, pageW - M, 21.6, { align: 'right' });
+            doc.text(`Período: ${iniBR} a ${fimBR}`, pageW / 2, 20.4, { align: 'center' });
             doc.setFont('helvetica', 'italic');
             doc.setFontSize(8);
             doc.setTextColor(MUTED[0], MUTED[1], MUTED[2]);
-            doc.text(stockNote, pageW - M, 26, { align: 'right' });
+            doc.text(stockNote, pageW / 2, 24.8, { align: 'center' });
             doc.setDrawColor(226, 232, 240);
             doc.setLineWidth(0.2);
-            doc.line(M, 29.5, pageW - M, 29.5);
+            doc.line(M, 27.8, pageW - M, 27.8);
         };
 
         const headerCompact = () => {
             drawBars(1.4, 0.5);
-            drawLogo(7, M, 3.6);
-            drawTag(tagText, pageW - M, 4.2, 6, 8.5);
+            drawTag(tagText, pageW / 2, 4.2, 6, 8.5);
         };
 
         const bodyData = rows.map(r => [
@@ -1337,6 +1334,7 @@
         });
         $('btnOfertasPdfConferencia').addEventListener('click', () => { ddPdf.classList.add('hidden'); exportOfertasPDF('filtrado'); });
         $('btnOfertasPdfSelecionados').addEventListener('click', () => { ddPdf.classList.add('hidden'); exportOfertasPDF('selecionados'); });
+        $('btnOfertasPdfProdutos').addEventListener('click', () => { ddPdf.classList.add('hidden'); exportOfertasPDF('produtos'); });
         $('btnOfertasPdfClientes').addEventListener('click', () => { ddPdf.classList.add('hidden'); openClienteModal(); });
         $('btnOfertasClearSelection').addEventListener('click', () => {
             ddPdf.classList.add('hidden');
