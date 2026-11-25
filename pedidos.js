@@ -13,6 +13,57 @@ const pedidosState = {
     pageSize: 100
 };
 
+// ---------------------------------------------------------------------------
+// PERSISTÊNCIA: pedidos ficam salvos no navegador (localStorage) e só são
+// apagados pelo botão "Limpar Pedidos".
+// ---------------------------------------------------------------------------
+const LS_PEDIDOS = 'mo_pedidos_v1';
+let pedidosRestaurado = false;
+let pedidosUltimoSalvo = '';
+
+function salvarPedidos() {
+    if (!pedidosRestaurado) return;
+    try {
+        const nome = (pedidosState.clientName || '').trim();
+        const saved = Object.assign({}, pedidosState.savedOrders);
+        if (nome !== '') saved[nome] = [...pedidosState.cartItems];
+        const json = JSON.stringify({ clientName: nome, savedOrders: saved });
+        if (json === pedidosUltimoSalvo) return;
+        localStorage.setItem(LS_PEDIDOS, json);
+        pedidosUltimoSalvo = json;
+    } catch (e) { /* armazenamento indisponível */ }
+}
+
+function restaurarPedidos() {
+    try {
+        const raw = localStorage.getItem(LS_PEDIDOS);
+        if (raw) {
+            const d = JSON.parse(raw);
+            if (d && d.savedOrders && typeof d.savedOrders === 'object') {
+                pedidosState.savedOrders = d.savedOrders;
+                pedidosState.clientName = d.clientName || '';
+                pedidosState.cartItems = pedidosState.clientName && Array.isArray(d.savedOrders[pedidosState.clientName])
+                    ? [...d.savedOrders[pedidosState.clientName]] : [];
+                pedidosUltimoSalvo = raw;
+            }
+        }
+    } catch (e) { /* dados corrompidos: ignora */ }
+    pedidosRestaurado = true;
+}
+
+function limparTodosPedidos() {
+    const nome = (pedidosState.clientName || '').trim();
+    const total = Object.keys(pedidosState.savedOrders).length + (nome && !(nome in pedidosState.savedOrders) ? 1 : 0);
+    if (total === 0 && pedidosState.cartItems.length === 0) return;
+    if (!confirm('Limpar TODOS os pedidos e clientes salvos? Esta ação não pode ser desfeita.')) return;
+    pedidosState.savedOrders = {};
+    pedidosState.cartItems = [];
+    pedidosState.clientName = '';
+    updateClientesSelect();
+    renderPedidosKpis();
+    renderPedidosCartTable();
+}
+
 // Termos para identificação automática da planilha SMG13
 const SMG13_KEYWORDS = ['smg13', 'biblia'];
 
@@ -24,6 +75,12 @@ document.addEventListener('DOMContentLoaded', () => {
  * Inicializa os eventos da aba Pedidos
  */
 function initPedidosModule() {
+    restaurarPedidos();
+    updateClientesSelect();
+    renderPedidosKpis();
+    renderPedidosCartTable();
+    const btnLimparPedidos = document.getElementById('btnLimparPedidos');
+    if (btnLimparPedidos) btnLimparPedidos.addEventListener('click', limparTodosPedidos);
     // Monitora a seleção da pasta
     const folderInput = document.getElementById('folderInput');
     if (folderInput) {
@@ -475,6 +532,7 @@ function renderPedidosUI() {
  * Atualiza os KPIs de Valor e Quantidade de Produtos no Pedido
  */
 function renderPedidosKpis() {
+    salvarPedidos();
     const kpiValor = document.getElementById('kpiValorPedido');
     const kpiQtd = document.getElementById('kpiQtdItensPedido');
 

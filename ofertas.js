@@ -36,6 +36,37 @@
 
     const $ = (id) => document.getElementById(id);
 
+    // ------------------------------------------------------------- persistência
+    // Ofertas ficam salvas no navegador (localStorage) e só somem com "Limpar Dados".
+    const LS_OFERTAS = 'mo_ofertas_v1';
+    let ofertasUltimoSalvo = '';
+    let ofertasRestaurado = false;
+
+    function salvarOfertas() {
+        if (!ofertasRestaurado) return;
+        try {
+            const json = JSON.stringify({ offers: ofertasState.offers, clienteDates: ofertasState.clienteDates });
+            if (json === ofertasUltimoSalvo) return;
+            localStorage.setItem(LS_OFERTAS, json);
+            ofertasUltimoSalvo = json;
+        } catch (e) { /* armazenamento indisponível: segue sem salvar */ }
+    }
+
+    function restaurarOfertas() {
+        try {
+            const raw = localStorage.getItem(LS_OFERTAS);
+            if (raw) {
+                const d = JSON.parse(raw);
+                if (d && Array.isArray(d.offers)) {
+                    ofertasState.offers = d.offers.filter(o => o && o.key && o.id !== undefined);
+                    if (d.clienteDates) ofertasState.clienteDates = d.clienteDates;
+                    ofertasUltimoSalvo = raw;
+                }
+            }
+        } catch (e) { /* dados corrompidos: ignora */ }
+        ofertasRestaurado = true;
+    }
+
     // ------------------------------------------------------------------ utils
     function esc(v) {
         return String(v === null || v === undefined ? '' : v).replace(/[&<>"']/g, ch => (
@@ -810,6 +841,7 @@
     }
 
     function renderOfertasUI(force) {
+        salvarOfertas();
         if (!force && state.activeTab !== 'tab-ofertas') return;
         if (!$('ofertasTableBody')) return;
 
@@ -1260,6 +1292,7 @@
     }
 
     function init() {
+        restaurarOfertas();
         if (!$('tab-ofertas')) return;
 
         $('btnOfertasPaste').addEventListener('click', openPasteModal);
