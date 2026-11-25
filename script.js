@@ -1079,7 +1079,7 @@ function syncColumnVisibility() {
     checkboxes.forEach(cb => {
         const targetCol = cb.getAttribute('data-target-col');
         const isVisible = cb.checked;
-        document.querySelectorAll(`.col-${targetCol}`).forEach(el => {
+        document.querySelectorAll(`#inventoryTable .col-${targetCol}, #salesTable .col-${targetCol}`).forEach(el => {
             el.classList.toggle('hidden', !isVisible);
         });
     });

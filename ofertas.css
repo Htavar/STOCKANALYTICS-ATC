@@ -101,6 +101,12 @@
 
 #tableOfertas td.col-precoOferta { white-space: nowrap; }
 
+/* Menu de colunas da aba Ofertas */
+.ofertas-cols-menu { max-height: 340px; overflow-y: auto; min-width: 190px; }
+.ofertas-cols-menu label { display: flex; align-items: center; gap: 0.4rem; white-space: nowrap; cursor: pointer; }
+.ofertas-cols-actions { display: flex; gap: 0.3rem; margin-bottom: 0.2rem; }
+.ofertas-cols-actions button { flex: 1; font-size: 0.65rem; padding: 0.15rem 0.3rem; }
+
 #tableOfertas tr.ofertas-row-notfound td {
     background-color: rgba(245, 158, 11, 0.07);
     color: var(--text-muted);

@@ -68,6 +68,81 @@
         ofertasRestaurado = true;
     }
 
+    // ------------------------------------------------------- colunas visíveis
+    // Escolha independente da Dashboard; fica salva no navegador.
+    const LS_OFERTAS_COLS = 'mo_ofertas_cols_v1';
+    const OFERTAS_COLS = [
+        ['embalagem', 'Embalagem'], ['estoque', 'Estoque (CX | UN)'], ['valorEstoque', 'Val. Total Estoque'],
+        ['precoCx', 'Preço Cx.'], ['precoUnd', 'Preço Und.'], ['precoOferta', 'Preço Oferta'],
+        ['rentOferta', 'Rent. Oferta'], ['precoFixo', 'Preço Fixo'], ['vendaOntem', 'Venda Dia Ant.'],
+        ['idade', 'Idade'], ['dias', 'Dias s/ Venda'], ['autonomia', 'Autonomia (Dias)'],
+        ['rentabilidade', 'Rentabilidade'], ['acao', 'Ação'], ['fornecedor', 'Fornecedor'],
+        ['pedidos', 'Ped. Pendentes'], ['sta', 'Status (STA)'], ['comprador', 'Comprador'],
+        ['venda30Dias', 'Venda 30 Dias'], ['grupo', 'Grupo / Subgrupo'], ['classe', 'Classe'],
+        ['digito', 'Dígito'], ['qtdIdeal', 'Qtd Ideal'], ['dtUltEnt', 'Dt. Últ. Entrada'],
+        ['qtdUltEnt', 'Qtd. Últ. Entrada'], ['bloq1', 'Bloq 1'], ['bloq9', 'Bloq 9'],
+        ['pedFornec', 'Ped. Pend. Fornec.'], ['pedFilial', 'Ped. Pend. Filial'], ['pedFat', 'Ped. Pend. N. Fat']
+    ];
+    const OFERTAS_COLS_OCULTAS_PADRAO = ['digito', 'qtdIdeal', 'dtUltEnt', 'qtdUltEnt', 'bloq1', 'bloq9', 'pedFornec', 'pedFilial', 'pedFat'];
+    let ofertasColsOcultas = new Set(OFERTAS_COLS_OCULTAS_PADRAO);
+
+    function aplicarColunasOfertas() {
+        let st = document.getElementById('ofertasColsStyle');
+        if (!st) {
+            st = document.createElement('style');
+            st.id = 'ofertasColsStyle';
+            document.head.appendChild(st);
+        }
+        st.textContent = Array.from(ofertasColsOcultas).map(k =>
+            `#tableOfertas .col-${k}${k === 'rentabilidade' ? ':not(.col-rentOferta)' : ''} { display: none !important; }`
+        ).join('\n');
+        try { localStorage.setItem(LS_OFERTAS_COLS, JSON.stringify(Array.from(ofertasColsOcultas))); } catch (e) { /* sem armazenamento */ }
+    }
+
+    function initColunasOfertas() {
+        try {
+            const raw = localStorage.getItem(LS_OFERTAS_COLS);
+            if (raw) {
+                const arr = JSON.parse(raw);
+                if (Array.isArray(arr)) ofertasColsOcultas = new Set(arr);
+            }
+        } catch (e) { /* usa o padrão */ }
+
+        const btn = $('btnOfertasCols');
+        const menu = $('dropdownOfertasCols');
+        if (!btn || !menu) { aplicarColunasOfertas(); return; }
+
+        menu.innerHTML = '<div class="ofertas-cols-actions">' +
+            '<button type="button" class="btn-secondary" data-cols-all="1">Todas</button>' +
+            '<button type="button" class="btn-secondary" data-cols-all="0">Padrão</button></div>' +
+            OFERTAS_COLS.map(([k, label]) =>
+                `<label><input type="checkbox" data-ofertas-col="${k}"> ${esc(label)}</label>`).join('');
+
+        const sync = () => menu.querySelectorAll('input[data-ofertas-col]').forEach(c => {
+            c.checked = !ofertasColsOcultas.has(c.getAttribute('data-ofertas-col'));
+        });
+        sync();
+        aplicarColunasOfertas();
+
+        btn.addEventListener('click', (e) => { e.stopPropagation(); menu.classList.toggle('hidden'); });
+        document.addEventListener('click', (e) => {
+            if (!menu.contains(e.target) && e.target !== btn) menu.classList.add('hidden');
+        });
+        menu.addEventListener('change', (e) => {
+            const k = e.target.getAttribute && e.target.getAttribute('data-ofertas-col');
+            if (!k) return;
+            if (e.target.checked) ofertasColsOcultas.delete(k); else ofertasColsOcultas.add(k);
+            aplicarColunasOfertas();
+        });
+        menu.addEventListener('click', (e) => {
+            const b = e.target.closest('button[data-cols-all]');
+            if (!b) return;
+            ofertasColsOcultas = b.getAttribute('data-cols-all') === '1' ? new Set() : new Set(OFERTAS_COLS_OCULTAS_PADRAO);
+            sync();
+            aplicarColunasOfertas();
+        });
+    }
+
     // ------------------------------------------------------------------ utils
     function esc(v) {
         return String(v === null || v === undefined ? '' : v).replace(/[&<>"']/g, ch => (
@@ -1302,6 +1377,7 @@
 
     function init() {
         restaurarOfertas();
+        initColunasOfertas();
         if (!$('tab-ofertas')) return;
 
         $('btnOfertasPaste').addEventListener('click', openPasteModal);
