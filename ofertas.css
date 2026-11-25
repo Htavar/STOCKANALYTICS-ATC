@@ -106,6 +106,14 @@
     color: var(--text-muted);
 }
 
+#tableOfertas tr.ofertas-row-dup td.col-acao .badge,
+#tableOfertas tr.ofertas-row-dup td:nth-child(2),
+#tableOfertas tr.ofertas-row-dup td:nth-child(2) strong,
+#tableOfertas tr.ofertas-row-dup td:nth-child(2) .sub-text {
+    color: #ef4444 !important;
+}
+#tableOfertas tr.ofertas-row-dup td:nth-child(2) strong { font-weight: 800; }
+
 #tableOfertas tr.ofertas-row-noStock td:first-child {
     box-shadow: inset 3px 0 0 var(--status-critical);
 }

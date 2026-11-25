@@ -26,6 +26,7 @@
         filterComprador: '',
         onlyStock: false,      // chave "Somente com Estoque"
         search: '',            // busca por código ou descrição
+        onlyDup: false,        // chave "Somente Duplicados" (mesmo produto em mais de uma linha)
         onlyBloq: false,       // chave "Produtos Bloqueados" (Preço Fixo = S)
         filterAcao: '',        // filtro por nome da ação
         selected: new Set(),   // ids das linhas marcadas (caixinha)
@@ -512,6 +513,8 @@
     // ------------------------------------------------------- cruzamento / filtros
     function buildRows() {
         const base = getBaseMap();
+        const contagemId = new Map();
+        ofertasState.offers.forEach(o => contagemId.set(o.id, (contagemId.get(o.id) || 0) + 1));
         ofertasState.rows = ofertasState.offers.map(o => {
             const item = base.get(o.id) || null;
             let ref = null, refTipo = null, diff = null, divergente = false, semEstoque = false, cmp = null, isKg = false, rentOferta = null;
@@ -530,7 +533,7 @@
             }
             const vd = ofertasState.vendaDia;
             const vendaDia = (item && vd.status === 'ok') ? (vd.map.get(o.id) || { cx: 0, un: 0, valor: 0 }) : null;
-            return { oferta: o, item: item, ref: ref, refTipo: refTipo, diff: diff, vendaDia: vendaDia,
+            return { duplicado: contagemId.get(o.id) > 1, oferta: o, item: item, ref: ref, refTipo: refTipo, diff: diff, vendaDia: vendaDia,
                      divergente: divergente, semEstoque: semEstoque, naoEncontrado: !item,
                      cmp: cmp, isKg: isKg, rentOferta: rentOferta,
                      bloqueado: !!item && String(item.prFixo || '').trim().toUpperCase() === 'S' };
@@ -590,6 +593,7 @@
             if (ofertasState.onlyStock && (r.naoEncontrado || r.semEstoque)) return false;
             if (tipo === 'sem_estoque' && !r.semEstoque) return false;
             if (ofertasState.onlyBloq && !r.bloqueado) return false;
+            if (ofertasState.onlyDup && !r.duplicado) return false;
             if (tipo === 'divergente' && !r.divergente) return false;
             if (tipo === 'atual_maior' && r.cmp !== 'maior') return false;
             if (tipo === 'atual_menor' && r.cmp !== 'menor') return false;
@@ -665,7 +669,7 @@
         const chkTd = `<td class="col-select"><input type="checkbox" class="row-select-chk" data-id="${esc(r.oferta.key)}" ${isSel ? 'checked' : ''} title="Selecionar para o PDF de Itens Selecionados"></td>`;
 
         if (!item) {
-            return `<tr class="ofertas-row-notfound ${isSel ? 'row-selected' : ''}">
+            return `<tr class="ofertas-row-notfound ${r.duplicado ? 'ofertas-row-dup' : ''} ${isSel ? 'row-selected' : ''}">
                 ${chkTd}
                 <td><strong>Código não encontrado na base</strong><span class="sub-text">Cód: ${esc(r.oferta.codigoDigitado)}</span></td>
                 <td class="col-embalagem">-</td>
@@ -704,7 +708,7 @@
         const refUn = r.refTipo === 'UN' ? refCls : '';
 
         return `
-        <tr class="${r.semEstoque ? 'ofertas-row-noStock' : ''} ${isSel ? 'row-selected' : ''}">
+        <tr class="${r.semEstoque ? 'ofertas-row-noStock' : ''} ${r.duplicado ? 'ofertas-row-dup' : ''} ${isSel ? 'row-selected' : ''}">
             ${chkTd}
             <td>
                 <strong>${esc(item.descricao)}</strong>
@@ -998,6 +1002,7 @@
             if (ofertasState.filterAcao) filtroTxt += `  |  Ação: ${ofertasState.filterAcao}`;
             if (ofertasState.onlyStock) filtroTxt += '  |  Somente com Estoque';
             if (ofertasState.onlyBloq) filtroTxt += '  |  Produtos Bloqueados (Preço Fixo = S)';
+            if (ofertasState.onlyDup) filtroTxt += '  |  Somente Duplicados';
             if (ofertasState.search.trim()) filtroTxt += `  |  Busca: ${ofertasState.search.trim()}`;
         }
 
@@ -1261,11 +1266,13 @@
         ofertasState.filterComprador = '';
         ofertasState.onlyStock = false;
         ofertasState.onlyBloq = false;
+        ofertasState.onlyDup = false;
         ofertasState.filterAcao = '';
         ofertasState.search = '';
         $('searchOfertas').value = '';
         $('toggleOfertasOnlyStock').checked = false;
         $('toggleOfertasOnlyBloq').checked = false;
+        $('toggleOfertasOnlyDup').checked = false;
         $('filterOfertasTipo').value = '';
         ofertasState.sort = { key: null, direction: 'asc' };
         renderOfertasUI(true);
@@ -1280,12 +1287,14 @@
         ofertasState.filterComprador = '';
         ofertasState.onlyStock = false;
         ofertasState.onlyBloq = false;
+        ofertasState.onlyDup = false;
         ofertasState.filterAcao = '';
         ofertasState.selected.clear();
         ofertasState.search = '';
         $('searchOfertas').value = '';
         $('toggleOfertasOnlyStock').checked = false;
         $('toggleOfertasOnlyBloq').checked = false;
+        $('toggleOfertasOnlyDup').checked = false;
         ofertasState.sort = { key: null, direction: 'asc' };
         $('filterOfertasTipo').value = '';
         renderOfertasUI(true);
@@ -1331,6 +1340,10 @@
         $('btnOfertasClearFilters').addEventListener('click', clearFilters);
         $('btnOfertasClearData').addEventListener('click', clearData);
         $('btnOfertasDelSel').addEventListener('click', deleteSelected);
+        $('toggleOfertasOnlyDup').addEventListener('change', (e) => {
+            ofertasState.onlyDup = e.target.checked;
+            renderOfertasUI(true);
+        });
         $('toggleOfertasOnlyBloq').addEventListener('change', (e) => {
             ofertasState.onlyBloq = e.target.checked;
             renderOfertasUI(true);
