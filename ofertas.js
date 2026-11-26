@@ -19,6 +19,7 @@
         matrix: [],            // dados colados (linhas x colunas)
         colCodigo: -1,         // índice da coluna de código escolhida
         colPreco: -1,          // índice da coluna de preço escolhida
+        colObs: -1,            // índice da coluna de observação (opcional; -1 = nenhuma)
         pendingOffers: [],     // ofertas lidas no modal (antes de aplicar)
         offers: [],            // ofertas aplicadas [{ id, codigoDigitado, preco }]
         rows: [],              // ofertas cruzadas com a base
@@ -76,7 +77,7 @@
         ['precoCx', 'Preço Cx.'], ['precoUnd', 'Preço Und.'], ['precoOferta', 'Preço Oferta'],
         ['rentOferta', 'Rent. Oferta'], ['precoFixo', 'Preço Fixo'], ['vendaOntem', 'Venda Dia Ant.'],
         ['idade', 'Idade'], ['dias', 'Dias s/ Venda'], ['autonomia', 'Autonomia (Dias)'],
-        ['rentabilidade', 'Rentabilidade'], ['acao', 'Ação'], ['fornecedor', 'Fornecedor'],
+        ['rentabilidade', 'Rentabilidade'], ['acao', 'Ação'], ['obs', 'Observação'], ['fornecedor', 'Fornecedor'],
         ['pedidos', 'Ped. Pendentes'], ['sta', 'Status (STA)'], ['comprador', 'Comprador'],
         ['venda30Dias', 'Venda 30 Dias'], ['grupo', 'Grupo / Subgrupo'], ['classe', 'Classe'],
         ['digito', 'Dígito'], ['qtdIdeal', 'Qtd Ideal'], ['dtUltEnt', 'Dt. Últ. Entrada'],
@@ -326,7 +327,16 @@
         return { code, price };
     }
 
-    function extractOffers(matrix, cCode, cPrice) {
+    // Procura, nas primeiras linhas, uma coluna cujo cabeçalho comece com "obs" (Obs., Observação...)
+    function detectObsColumn(matrix) {
+        for (let i = 0; i < Math.min(matrix.length, 5); i++) {
+            const idx = matrix[i].findIndex(c => /^obs/.test(normTxt(c)));
+            if (idx >= 0) return idx;
+        }
+        return -1;
+    }
+
+    function extractOffers(matrix, cCode, cPrice, cObs) {
         const map = new Map();
         let ignored = 0, dup = 0;
         matrix.forEach(r => {
@@ -337,7 +347,8 @@
                 return;
             }
             if (map.has(cod.id)) dup++;
-            map.set(cod.id, { id: cod.id, codigoDigitado: cod.raw, preco: pr });
+            const obs = (cObs >= 0 && cObs !== cCode && cObs !== cPrice) ? String(r[cObs] === undefined ? '' : r[cObs]).trim() : '';
+            map.set(cod.id, { id: cod.id, codigoDigitado: cod.raw, preco: pr, obs: obs });
         });
         return { offers: Array.from(map.values()), ignored: ignored, dup: dup };
     }
@@ -373,6 +384,7 @@
         const det = autoDetectColumns(matrix);
         ofertasState.colCodigo = det.code;
         ofertasState.colPreco = det.price;
+        ofertasState.colObs = detectObsColumn(matrix);
 
         const sample = (c) => {
             for (let i = 0; i < Math.min(matrix.length, 12); i++) {
@@ -387,6 +399,8 @@
 
         $('selOfertasColCodigo').innerHTML = optionsHtml;
         $('selOfertasColPreco').innerHTML = optionsHtml;
+        $('selOfertasColObs').innerHTML = '<option value="-1">— Nenhuma —</option>' + optionsHtml;
+        $('selOfertasColObs').value = String(ofertasState.colObs);
         if (det.code >= 0) $('selOfertasColCodigo').value = String(det.code);
         if (det.price >= 0) $('selOfertasColPreco').value = String(det.price);
 
@@ -397,6 +411,7 @@
     function onMappingChanged() {
         ofertasState.colCodigo = parseInt($('selOfertasColCodigo').value, 10);
         ofertasState.colPreco = parseInt($('selOfertasColPreco').value, 10);
+        ofertasState.colObs = parseInt($('selOfertasColObs').value, 10);
         refreshPreview();
     }
 
@@ -408,7 +423,8 @@
         const base = getBaseMap();
         const hasBase = base.size > 0;
 
-        const result = extractOffers(matrix, cCode, cPrice);
+        const cObs = ofertasState.colObs;
+        const result = extractOffers(matrix, cCode, cPrice, cObs);
         ofertasState.pendingOffers = result.offers;
 
         // Prévia: começa uma linha antes da primeira linha válida (para mostrar o cabeçalho)
@@ -418,8 +434,8 @@
 
         let head = '<tr><th>#</th>';
         for (let c = 0; c < nCols; c++) {
-            const cls = c === cCode ? 'ofertas-col-code' : (c === cPrice ? 'ofertas-col-price' : '');
-            const tag = c === cCode ? ' (Código)' : (c === cPrice ? ' (Preço)' : '');
+            const cls = c === cCode ? 'ofertas-col-code' : (c === cPrice ? 'ofertas-col-price' : (c === cObs ? 'ofertas-col-obs' : ''));
+            const tag = c === cCode ? ' (Código)' : (c === cPrice ? ' (Preço)' : (c === cObs ? ' (Obs.)' : ''));
             head += `<th class="${cls}">${colLetter(c)}${tag}</th>`;
         }
         head += '<th>Leitura</th></tr>';
@@ -438,7 +454,7 @@
             }
             let cells = '';
             for (let c = 0; c < nCols; c++) {
-                const cls = c === cCode ? 'ofertas-col-code' : (c === cPrice ? 'ofertas-col-price' : '');
+                const cls = c === cCode ? 'ofertas-col-code' : (c === cPrice ? 'ofertas-col-price' : (c === cObs ? 'ofertas-col-obs' : ''));
                 cells += `<td class="${cls}">${esc(r[c] === undefined ? '' : r[c])}</td>`;
             }
             return `<tr><td class="ofertas-rownum">${start + i + 1}</td>${cells}<td>${status}</td></tr>`;
@@ -477,8 +493,9 @@
         const idx = new Map(ofertasState.offers.map((o, i) => [o.key, i]));
         ofertasState.pendingOffers.forEach(p => {
             const key = acaoKey + '\u0001' + p.id;
-            const obj = { key: key, id: p.id, codigoDigitado: p.codigoDigitado, preco: p.preco, acao: acaoNome };
+            const obj = { key: key, id: p.id, codigoDigitado: p.codigoDigitado, preco: p.preco, acao: acaoNome, obs: p.obs || '' };
             if (idx.has(key)) {
+                if (!obj.obs) obj.obs = ofertasState.offers[idx.get(key)].obs || '';   // recolagem sem obs mantém a anterior
                 ofertasState.offers[idx.get(key)] = obj;
             } else {
                 idx.set(key, ofertasState.offers.length);
@@ -641,6 +658,7 @@
     function sortValue(row, key) {
         if (key === 'precoOferta') return row.oferta.preco;
         if (key === 'acao') return row.oferta.acao;
+        if (key === 'obs') return row.oferta.obs || '';
         if (key === 'rentOferta') return row.rentOferta;
         if (key === 'vendaOntem') return row.vendaDia ? row.vendaDia.cx : null;
         if (!row.item) return null;
@@ -661,8 +679,8 @@
             if (ofertasState.filterAcao && r.oferta.acao !== ofertasState.filterAcao) return false;
             if (terms.length) {
                 const hay = r.item
-                    ? normTxt(`${r.item.descricao} ${r.item.codigoCompleto} ${r.item.id} ${r.oferta.acao}`)
-                    : normTxt(`${r.oferta.codigoDigitado} ${r.oferta.id} ${r.oferta.acao}`);
+                    ? normTxt(`${r.item.descricao} ${r.item.codigoCompleto} ${r.item.id} ${r.oferta.acao} ${r.oferta.obs || ''}`)
+                    : normTxt(`${r.oferta.codigoDigitado} ${r.oferta.id} ${r.oferta.acao} ${r.oferta.obs || ''}`);
                 if (!terms.every(t => hay.includes(t))) return false;
             }
             if (ofertasState.onlyStock && (r.naoEncontrado || r.semEstoque)) return false;
@@ -694,7 +712,11 @@
     }
 
     // ------------------------------------------------------------------ render
-    const COLS_APOS_OFERTA = ['col-idade', 'col-dias', 'col-autonomia', 'col-rentabilidade', 'col-acao', 'col-fornecedor',
+    function buildObsCell(r) {
+        return `<td class="col-obs"><input type="text" class="ofertas-obs-input" data-key="${esc(r.oferta.key)}" value="${esc(r.oferta.obs || '')}" maxlength="300" placeholder="Observação..." title="Clique para editar a observação (salva automaticamente)"></td>`;
+    }
+
+    const COLS_APOS_OFERTA = ['col-idade', 'col-dias', 'col-autonomia', 'col-rentabilidade', 'col-acao', 'col-obs', 'col-fornecedor',
         'col-pedidos', 'col-sta', 'col-comprador', 'col-venda30Dias', 'col-grupo', 'col-classe', 'col-digito',
         'col-qtdIdeal', 'col-dtUltEnt', 'col-qtdUltEnt', 'col-bloq1', 'col-bloq9',
         'col-pedFornec', 'col-pedFilial', 'col-pedFat'];
@@ -756,7 +778,7 @@
                 ${buildRentOfertaCell(r)}
                 ${buildPrFixoCell(r)}
                 ${buildVendaCell(r)}
-                ${COLS_APOS_OFERTA.map(c => `<td class="${c}">${c === 'col-acao' ? esc(r.oferta.acao) : '-'}</td>`).join('')}
+                ${COLS_APOS_OFERTA.map(c => c === 'col-obs' ? buildObsCell(r) : `<td class="${c}">${c === 'col-acao' ? esc(r.oferta.acao) : '-'}</td>`).join('')}
             </tr>`;
         }
 
@@ -808,6 +830,7 @@
             <td class="col-autonomia">${txtAutonomia}</td>
             <td class="col-rentabilidade"><span class="badge ${rentClass}">${item.rentabilidade.toFixed(2)}%</span></td>
             <td class="col-acao"><span class="badge badge-acao">${esc(r.oferta.acao)}</span></td>
+            ${buildObsCell(r)}
             <td class="col-fornecedor"><span class="badge badge-fornecedor">${esc(item.fornecedorFormatted)}</span></td>
             <td class="col-pedidos">${item.pedidosPendentes.toLocaleString('pt-BR')}</td>
             <td class="col-sta"><span class="badge ${staBadgeClass}">${esc(item.sta)}</span></td>
@@ -993,8 +1016,9 @@
         const existente = ofertasState.offers.find(o => normTxt(o.acao) === acaoKey);
         const acao = existente ? existente.acao : ACAO_NEGOCIADO;
         const key = acaoKey + '\u0001' + item.id;
-        const obj = { key: key, id: item.id, codigoDigitado: item.codigoCompleto, preco: preco, acao: acao };
         const idx = ofertasState.offers.findIndex(o => o.key === key);
+        const obj = { key: key, id: item.id, codigoDigitado: item.codigoCompleto, preco: preco, acao: acao,
+                      obs: idx >= 0 ? (ofertasState.offers[idx].obs || '') : '' };
         if (idx >= 0) ofertasState.offers[idx] = obj;
         else ofertasState.offers.push(obj);
         renderOfertasUI(true);
@@ -1387,6 +1411,7 @@
         $('ofertasPasteArea').addEventListener('input', onPasteChanged);
         $('selOfertasColCodigo').addEventListener('change', onMappingChanged);
         $('selOfertasColPreco').addEventListener('change', onMappingChanged);
+        $('selOfertasColObs').addEventListener('change', onMappingChanged);
 
         $('filterOfertasTipo').addEventListener('change', (e) => {
             ofertasState.filterTipo = e.target.value;
@@ -1426,6 +1451,19 @@
         });
 
         // Seleção de linhas (caixinhas)
+        // Edição da observação direto na tabela (salva a cada digitação)
+        $('ofertasTableBody').addEventListener('input', (e) => {
+            const inp = e.target.closest && e.target.closest('.ofertas-obs-input');
+            if (!inp) return;
+            const o = ofertasState.offers.find(x => x.key === inp.getAttribute('data-key'));
+            if (!o) return;
+            o.obs = inp.value;
+            salvarOfertas();
+        });
+        $('ofertasTableBody').addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && e.target.closest && e.target.closest('.ofertas-obs-input')) e.target.blur();
+        });
+
         $('ofertasTableBody').addEventListener('change', (e) => {
             const chk = e.target.closest('.row-select-chk');
             if (!chk) return;
