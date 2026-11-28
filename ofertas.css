@@ -81,6 +81,21 @@
 #ofertasPreviewTable td.ofertas-col-obs { background-color: rgba(245, 158, 11, 0.16); }
 
 #tableOfertas td.col-obs { min-width: 170px; }
+.ofertas-cliente-box { display: flex; align-items: center; gap: 0.35rem; font-size: 0.68rem; color: var(--text-muted); white-space: nowrap; }
+.ofertas-cliente-box input {
+    width: 210px;
+    background: var(--bg-primary);
+    color: var(--text-main);
+    border: 1px solid var(--border-color);
+    border-radius: 3px;
+    padding: 0.2rem 0.4rem;
+    font-size: 0.7rem;
+}
+.ofertas-cliente-box input:focus { outline: 1px solid var(--accent-blue, #38bdf8); }
+#tableOfertas .ofertas-nome-click { cursor: pointer; }
+#tableOfertas .ofertas-nome-click:hover { color: var(--accent-blue, #38bdf8); text-decoration: underline; }
+#tableOfertas .ofertas-cod-click { cursor: pointer; color: var(--accent-blue, #38bdf8); }
+#tableOfertas .ofertas-cod-click:hover { text-decoration: underline; }
 .ofertas-obs-input {
     width: 100%;
     min-width: 160px;

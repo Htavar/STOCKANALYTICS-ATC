@@ -768,7 +768,7 @@
         if (!item) {
             return `<tr class="ofertas-row-notfound ${r.duplicado ? 'ofertas-row-dup' : ''} ${isSel ? 'row-selected' : ''}">
                 ${chkTd}
-                <td><strong>Código não encontrado na base</strong><span class="sub-text">Cód: ${esc(r.oferta.codigoDigitado)}</span></td>
+                <td><strong>Código não encontrado na base</strong><span class="sub-text">Cód: <span class="ofertas-cod-click" data-code="${esc(r.oferta.codigoDigitado)}" title="Clique para copiar o código">${esc(r.oferta.codigoDigitado)}</span></span></td>
                 <td class="col-embalagem">-</td>
                 <td class="col-estoque">-</td>
                 <td class="col-valorEstoque">-</td>
@@ -808,8 +808,8 @@
         <tr class="${r.semEstoque ? 'ofertas-row-noStock' : ''} ${r.duplicado ? 'ofertas-row-dup' : ''} ${isSel ? 'row-selected' : ''}">
             ${chkTd}
             <td>
-                <strong>${esc(item.descricao)}</strong>
-                <span class="sub-text">Cód: ${esc(item.codigoCompleto)}</span>
+                <strong class="ofertas-nome-click" data-key="${esc(r.oferta.key)}" title="Clique para lançar este produto no pedido do cliente escolhido">${esc(item.descricao)}</strong>
+                <span class="sub-text">Cód: <span class="ofertas-cod-click" data-code="${esc(item.codigoCompleto)}" title="Clique para copiar o código">${esc(item.codigoCompleto)}</span></span>
             </td>
             <td class="col-embalagem">${esc(item.embalagem)}</td>
             <td class="col-estoque">
@@ -917,6 +917,87 @@
         set('kpiOfertasNaoEnc', rows.filter(r => r.naoEncontrado).length);
         set('kpiOfertasSemEstoque', rows.filter(r => r.semEstoque).length);
         set('kpiOfertasDivergentes', rows.filter(r => r.divergente).length);
+
+        // % do estoque: valor em estoque dos itens filtrados (cada produto uma vez) sobre o estoque total da base
+        const vistos = new Set();
+        let valFiltrado = 0;
+        rows.forEach(r => {
+            if (r.item && !vistos.has(r.item.id)) { vistos.add(r.item.id); valFiltrado += Number(r.item.valorEstoqueTotal) || 0; }
+        });
+        const valTotal = (state.rawProcessedData || []).reduce((s, i) => s + (Number(i.valorEstoqueTotal) || 0), 0);
+        const pct = valTotal > 0 ? (valFiltrado / valTotal) * 100 : 0;
+        const brl = (v) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+        const elPct = $('kpiOfertasPct'), elSub = $('kpiOfertasPctSub');
+        if (elPct) elPct.textContent = pct.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '%';
+        if (elSub) elSub.textContent = valTotal > 0 ? `${brl(valFiltrado)} de ${brl(valTotal)}` : 'Carregue a pasta de dados';
+    }
+
+    // ------------------------------------------- copiar código / lançar no pedido
+    let ofertasToastTimer = null;
+    function ofertasToast(msg) {
+        let el = $('negToast');
+        if (!el) {
+            el = document.createElement('div');
+            el.id = 'negToast';
+            el.className = 'neg-toast';
+            document.body.appendChild(el);
+        }
+        el.textContent = msg;
+        el.classList.add('show');
+        clearTimeout(ofertasToastTimer);
+        ofertasToastTimer = setTimeout(() => el.classList.remove('show'), 3800);
+    }
+
+    function copiarTexto(txt) {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            return navigator.clipboard.writeText(txt);
+        }
+        return new Promise((resolve, reject) => {
+            try {
+                const ta = document.createElement('textarea');
+                ta.value = txt;
+                ta.style.position = 'fixed';
+                ta.style.opacity = '0';
+                document.body.appendChild(ta);
+                ta.select();
+                const ok = document.execCommand('copy');
+                document.body.removeChild(ta);
+                ok ? resolve() : reject(new Error('copy'));
+            } catch (e) { reject(e); }
+        });
+    }
+
+    function copiarCodigo(el) {
+        const code = el.getAttribute('data-code');
+        if (!code) return;
+        copiarTexto(code).then(() => {
+            const original = el.textContent;
+            el.textContent = `${original} ✔ Copiado!`;
+            setTimeout(() => { el.textContent = original; }, 1300);
+        }).catch(() => ofertasToast('Não foi possível copiar o código.'));
+    }
+
+    function atualizarListaClientes() {
+        const dl = $('ofertasClientesList');
+        if (!dl || typeof pedidosState === 'undefined') return;
+        const nomes = new Set(Object.keys(pedidosState.savedOrders || {}));
+        if (pedidosState.clientName) nomes.add(pedidosState.clientName);
+        dl.innerHTML = Array.from(nomes).sort((a, b) => a.localeCompare(b, 'pt-BR'))
+            .map(n => `<option value="${esc(n)}"></option>`).join('');
+    }
+
+    function lancarNoPedido(key) {
+        const cliente = ($('ofertasClienteInput').value || '').trim();
+        if (!cliente) {
+            ofertasToast('Informe o cliente do pedido (caixa "Cliente do pedido") antes de clicar no produto.');
+            $('ofertasClienteInput').focus();
+            return;
+        }
+        const o = ofertasState.offers.find(x => x.key === key);
+        if (!o || typeof window.pedidosLancarDaOferta !== 'function') return;
+        const res = window.pedidosLancarDaOferta(cliente, o.id, o.preco);
+        if (res && res.erro) ofertasToast(res.erro);
+        else atualizarListaClientes();
     }
 
     function updateVendaStatus() {
@@ -1451,6 +1532,22 @@
         });
 
         // Seleção de linhas (caixinhas)
+        // Cliente do pedido (lembra o último usado) e lista de clientes da aba Pedidos
+        try { $('ofertasClienteInput').value = localStorage.getItem('mo_ofertas_cliente') || ''; } catch (e) { /* sem armazenamento */ }
+        $('ofertasClienteInput').addEventListener('focus', atualizarListaClientes);
+        $('ofertasClienteInput').addEventListener('input', () => {
+            try { localStorage.setItem('mo_ofertas_cliente', $('ofertasClienteInput').value); } catch (e) { /* ignora */ }
+        });
+        atualizarListaClientes();
+
+        // Clique no código (copia) e no nome do produto (lança no pedido)
+        $('ofertasTableBody').addEventListener('click', (e) => {
+            const cod = e.target.closest && e.target.closest('.ofertas-cod-click');
+            if (cod) { copiarCodigo(cod); return; }
+            const nome = e.target.closest && e.target.closest('.ofertas-nome-click');
+            if (nome) lancarNoPedido(nome.getAttribute('data-key'));
+        });
+
         // Edição da observação direto na tabela (salva a cada digitação)
         $('ofertasTableBody').addEventListener('input', (e) => {
             const inp = e.target.closest && e.target.closest('.ofertas-obs-input');

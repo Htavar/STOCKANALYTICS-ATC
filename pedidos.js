@@ -743,6 +743,53 @@ function confirmLancarModal() {
 }
 
 /**
+ * Chamado pela aba Ofertas: seleciona (ou cria) o cliente e abre a janela de lançamento
+ * do produto já com o preço da oferta.
+ */
+window.pedidosLancarDaOferta = function (cliente, idProduto, precoOferta) {
+    const nomeDigitado = String(cliente || '').trim();
+    if (!nomeDigitado) return { erro: 'Informe o cliente do pedido.' };
+    if (!pedidosState.rawSmg13.length) return { erro: 'A base SMG13 ainda não foi carregada (selecione a pasta de dados).' };
+
+    const product = pedidosState.rawSmg13.find(p => sanitizeProductCode(p.formattedCode) === idProduto);
+    if (!product) return { erro: 'Produto não encontrado na SMG13 (aba Pedidos).' };
+
+    // Reaproveita o cliente já existente (ignorando maiúsculas/minúsculas) ou cria um novo
+    const norm = (s) => String(s).trim().toLowerCase();
+    const atual = (pedidosState.clientName || '').trim();
+    const existente = Object.keys(pedidosState.savedOrders).find(n => norm(n) === norm(nomeDigitado))
+        || (atual && norm(atual) === norm(nomeDigitado) ? atual : null);
+    const nome = existente || nomeDigitado;
+
+    if (nome !== atual) {
+        if (atual !== '') {
+            if (pedidosState.cartItems.length > 0) pedidosState.savedOrders[atual] = [...pedidosState.cartItems];
+            else delete pedidosState.savedOrders[atual];
+        }
+        if (!pedidosState.savedOrders[nome]) pedidosState.savedOrders[nome] = [];
+        pedidosState.clientName = nome;
+        pedidosState.cartItems = [...pedidosState.savedOrders[nome]];
+    }
+    updateClientesSelect();
+    renderPedidosKpis();
+    renderPedidosCartTable();
+
+    // A janela fica dentro da aba Pedidos (oculta): leva para o <body> para abrir sobre qualquer aba
+    const modal = document.getElementById('modalLancarProduto');
+    if (modal && modal.parentElement !== document.body) document.body.appendChild(modal);
+
+    openLancarModal(product.id);
+
+    const jaNoPedido = pedidosState.cartItems.some(ci => ci.id === product.id);
+    const inputPreco = document.getElementById('inputModalPrecoNegociado');
+    if (!jaNoPedido && inputPreco && precoOferta > 0) {
+        inputPreco.value = Number(precoOferta).toFixed(2);
+        updateModalSubtotal();
+    }
+    return { ok: true, cliente: nome };
+};
+
+/**
  * Fecha a modal flutuante
  */
 function closeLancarModal() {
