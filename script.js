@@ -829,6 +829,34 @@ function updateHeaderSortIcons() {
     });
 }
 
+// Clique no código do produto (Dashboard / Análise de Vendas): copia o código
+document.addEventListener('click', (e) => {
+    const el = e.target.closest && e.target.closest('.cod-click');
+    if (!el) return;
+    const code = el.getAttribute('data-code');
+    if (!code) return;
+    const feito = () => {
+        const original = el.textContent;
+        el.textContent = `${original} ✔ Copiado!`;
+        setTimeout(() => { el.textContent = original; }, 1300);
+    };
+    const fallback = () => {
+        try {
+            const ta = document.createElement('textarea');
+            ta.value = code;
+            ta.style.position = 'fixed';
+            ta.style.opacity = '0';
+            document.body.appendChild(ta);
+            ta.select();
+            const ok = document.execCommand('copy');
+            document.body.removeChild(ta);
+            if (ok) feito();
+        } catch (err) { /* sem permissão */ }
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(code).then(feito).catch(fallback);
+    else fallback();
+});
+
 function sanitizeProductCode(raw) {
     if (raw === null || raw === undefined) return '';
     let str = String(raw).trim();
@@ -1749,7 +1777,7 @@ function renderDashboardTable(pageItems) {
             </td>
             <td>
                 <strong>${item.descricao}</strong>
-                <span class="sub-text">Cód: ${item.codigoCompleto}</span>
+                <span class="sub-text">Cód: <span class="cod-click" data-code="${item.codigoCompleto}" title="Clique para copiar o código">${item.codigoCompleto}</span></span>
             </td>
             <td class="col-embalagem">${item.embalagem}</td>
             <td class="col-estoque">
@@ -1871,7 +1899,7 @@ function renderSalesTable(pageItems) {
         <tr>
             <td>
                 <strong>${item.descricao}</strong>
-                <span class="sub-text">Cód: ${item.codigoCompleto}</span>
+                <span class="sub-text">Cód: <span class="cod-click" data-code="${item.codigoCompleto}" title="Clique para copiar o código">${item.codigoCompleto}</span></span>
             </td>
             <td>${item.embalagem}</td>
             <td>

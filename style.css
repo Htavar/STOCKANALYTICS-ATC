@@ -1035,3 +1035,6 @@ body.hide-values .mini-ranking-table td:nth-child(5) {
     border-color: var(--accent-blue);
     box-shadow: 0 0 0 1px var(--accent-blue), 0 4px 14px rgba(56, 189, 248, 0.18);
 }
+
+.cod-click { cursor: pointer; color: var(--accent-blue, #38bdf8); }
+.cod-click:hover { text-decoration: underline; }

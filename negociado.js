@@ -123,7 +123,7 @@
 
         // Clique na linha do produto (ignora caixinha, links, botões e seleção de texto)
         tbody.addEventListener('click', (e) => {
-            if (e.target.closest('input, label, button, a, select, .col-select, [onclick]')) return;
+            if (e.target.closest('input, label, button, a, select, .col-select, .cod-click, [onclick]')) return;
             if (window.getSelection && String(window.getSelection())) return;
             const tr = e.target.closest('tr');
             if (!tr) return;
