@@ -870,7 +870,7 @@ input:checked + .slider:before { transform: translateX(10px); }
 body.hide-values .col-valorEstoque,
 body.hide-values .col-rentabilidade,
 body.hide-values #kpiValorEstoqueTotal,
-body.hide-values #kpiOfertasPctSub,
+body.hide-values #kpiPctEstoqueSub,
 body.hide-values #kpiVendaAnteriorTotal,
 body.hide-values #kpiVendaAtualTotal,
 body.hide-values #kpiDiferencaVendasTotal,

@@ -918,18 +918,6 @@
         set('kpiOfertasSemEstoque', rows.filter(r => r.semEstoque).length);
         set('kpiOfertasDivergentes', rows.filter(r => r.divergente).length);
 
-        // % do estoque: valor em estoque dos itens filtrados (cada produto uma vez) sobre o estoque total da base
-        const vistos = new Set();
-        let valFiltrado = 0;
-        rows.forEach(r => {
-            if (r.item && !vistos.has(r.item.id)) { vistos.add(r.item.id); valFiltrado += Number(r.item.valorEstoqueTotal) || 0; }
-        });
-        const valTotal = (state.rawProcessedData || []).reduce((s, i) => s + (Number(i.valorEstoqueTotal) || 0), 0);
-        const pct = valTotal > 0 ? (valFiltrado / valTotal) * 100 : 0;
-        const brl = (v) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-        const elPct = $('kpiOfertasPct'), elSub = $('kpiOfertasPctSub');
-        if (elPct) elPct.textContent = pct.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '%';
-        if (elSub) elSub.textContent = valTotal > 0 ? `${brl(valFiltrado)} de ${brl(valTotal)}` : 'Carregue a pasta de dados';
     }
 
     // ------------------------------------------- copiar código / lançar no pedido

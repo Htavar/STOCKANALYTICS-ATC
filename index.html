@@ -220,6 +220,11 @@
                         <span class="card-label">Valor Total do Estoque</span>
                         <strong class="card-value" id="kpiValorEstoqueTotal" style="color: var(--accent-blue);">R$ 0,00</strong>
                     </div>
+                    <div class="bento-card" title="Valor em estoque do que está filtrado em relação ao valor total de estoque da base">
+                        <span class="card-label">% do Estoque Total</span>
+                        <strong class="card-value" id="kpiPctEstoque">0,00%</strong>
+                        <span class="sub-text" id="kpiPctEstoqueSub">-</span>
+                    </div>
                     <div class="bento-card warning">
                         <span class="card-label">Em Alerta (> 2 dias)</span>
                         <strong class="card-value" id="kpiWarning">0</strong>
@@ -1355,11 +1360,6 @@
 					<div class="bento-card critical">
 						<span class="card-label">Preços Divergentes</span>
 						<strong class="card-value" id="kpiOfertasDivergentes">0</strong>
-					</div>
-					<div class="bento-card" title="Valor em estoque dos itens filtrados em relação ao valor total de estoque da base">
-						<span class="card-label">% do Estoque Total</span>
-						<strong class="card-value" id="kpiOfertasPct">0,00%</strong>
-						<span class="sub-text" id="kpiOfertasPctSub">-</span>
 					</div>
 					<div class="bento-card selection-card" id="cardOfertasSel">
 						<span class="card-label">Itens Selecionados</span>

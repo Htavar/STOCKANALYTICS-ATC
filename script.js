@@ -1639,6 +1639,15 @@ function renderUI() {
     const totalValorEstoque = state.filteredData.reduce((sum, item) => sum + item.valorEstoqueTotal, 0);
     elements.kpiValorEstoqueTotal.textContent = totalValorEstoque.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
+    // % do estoque: valor do que está filtrado sobre o valor total de estoque da base
+    const valorEstoqueBase = (state.rawProcessedData || []).reduce((sum, item) => sum + item.valorEstoqueTotal, 0);
+    const pctEstoque = valorEstoqueBase > 0 ? (totalValorEstoque / valorEstoqueBase) * 100 : 0;
+    const elPctEst = document.getElementById('kpiPctEstoque');
+    const elPctEstSub = document.getElementById('kpiPctEstoqueSub');
+    const brlEst = (v) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+    if (elPctEst) elPctEst.textContent = pctEstoque.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '%';
+    if (elPctEstSub) elPctEstSub.textContent = valorEstoqueBase > 0 ? `${brlEst(totalValorEstoque)} de ${brlEst(valorEstoqueBase)}` : 'Carregue a pasta de dados';
+
     elements.kpiWarning.textContent = state.filteredData.filter(i => i.riskLevel === 'warning').length.toLocaleString('pt-BR');
     elements.kpiCritical.textContent = state.filteredData.filter(i => i.riskLevel === 'critical').length.toLocaleString('pt-BR');
 
